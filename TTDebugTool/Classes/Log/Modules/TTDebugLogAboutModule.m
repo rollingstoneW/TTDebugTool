@@ -33,7 +33,7 @@
                               @"✅视图层级: 默认展示当前页面的视图层级，长按可以检查视图的详细信息。",
                               @"✅选择视图: 点击此功能后，点击想要查看的视图，会打开视图层级定位到当前点击到视图并闪烁。",
                               @"✅控制器层级: 展示所有控制器的层级，并会定位到当前控制器并闪烁，长按可以检查控制器的详细信息。",
-                              @"✅检查器: 可以查看所选对象的详细信息。默认精选了UIApplication、AppDelegate、NSNotificationCenter和一个代码示例，可以通过[TTDebugRuntimeInspector registFavorites:]注册精选功能。目前代码执行，仅支持方法调用，详细见TTDebugOCExpression。",
+                              @"✅检查器: 可以查看所选对象的详细信息。默认精选了UIApplication、AppDelegate、NSNotificationCenter、NSUserDefaults和一个代码示例，可以通过[TTDebugRuntimeInspector registFavorites:]注册精选功能。目前代码执行，仅支持方法调用，详细见TTDebugOCExpression。",
                               @"✅日志: 单条默认展示前三行，点击展开全部和详细信息。",
                               @"    - Log: 通过TTDebugLogger打印的日志。",
                               @"    - Webview: 记录每个网页的开始加载、加载完成和加载失败，并会记录加载时长。",

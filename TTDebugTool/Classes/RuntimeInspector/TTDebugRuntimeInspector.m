@@ -764,7 +764,7 @@ return @(ret); \
         [TTDebugOCExpression expressionWithTitle:@"通知" className:@"NSNotificationCenter" selector:@"defaultCenter" params:nil],
         [TTDebugOCExpression expressionWithTitle:@"Application" className:@"UIApplication" selector:@"sharedApplication" params:nil],
         [TTDebugOCExpression expressionWithTitle:@"AppDelegate" className:@"UIApplication" selector:@"sharedApplication" params:@"delegate"],
-        [TTDebugOCExpression expressionWithTitle:@"代码示例1" OCCode:@"UIView *redView = [[UIView alloc] initWithFrame:{{100,100},{100,100}}];\n[redView setBackgroundColor:[UIColor redColor]];\n[[[[UIApplication sharedApplication] delegate] window] addSubview:redView];"],
+        [TTDebugOCExpression expressionWithTitle:@"NSUserDefaults" className:@"NSUserDefaults" selector:@"standardUserDefaults" params:nil],
         [TTDebugOCExpression expressionWithTitle:@"代码示例2" OCCode:@"UIViewController *currentViewController = [TTDebugUtils currentViewController];\nUIViewController *newVC = [[UIViewController alloc] init];\n[[newVC view] setBackgroundColor:[UIColor whiteColor]];\n[newVC setTitle:@\"新页面\"];\nUINavigationController *navi = [[UINavigationController alloc] initWithRootViewController:newVC];\n[[currentViewController navigationController] presentViewController:navi animated:1 completion:nil];"],
     ];
 }

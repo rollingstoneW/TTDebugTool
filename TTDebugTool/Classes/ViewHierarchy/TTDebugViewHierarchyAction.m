@@ -64,7 +64,6 @@ static LiveViewHierarchyItem *itemAtTapedView;
     action.title = @"视图层级";
     action.handler = ^(TTDebugViewHierarchyAction * _Nonnull action) {
         LiveViewHierarchyItem *items = [action hierarchyItemsInView:[TTDebugUtils currentViewController].view atTapedView:nil];
-        items.isOpen = YES;
         [TTDebugViewHierarchyAlertView showWithHerirachyItems:@[items] selectedItem:nil isControllers:NO].action = action;
     };
     return action;
@@ -228,6 +227,10 @@ static LiveViewHierarchyItem *itemAtTapedView;
         viewControllerItem.childs = @[item];
         viewControllerItem.parent = item.parent;
         item.parent = viewControllerItem;
+        
+        viewControllerItem.isOpen = YES;
+        item.isOpen = YES;
+        
         item = viewControllerItem;
     }
     return item;

@@ -16,7 +16,6 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)selectViewAction;
 
 + (instancetype)viewControllerHierarchyAction;
-+ (instancetype)selectViewControllerAction;
 
 - (NSArray<LiveViewHierarchyItem *> *)hierarchyItemsInAllWindows;
 

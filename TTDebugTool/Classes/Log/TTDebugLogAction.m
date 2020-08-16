@@ -11,7 +11,7 @@
 #import "TTDebugInternalNotification.h"
 #import "TTDebugLogAboutModule.h"
 
-static NSString * const HasShownAboutKey = @"hasShownAboutModule4";
+static NSString * const HasShownAboutKey = @"hasShownAbout";
 
 @interface TTDebugLogAction () <TTDebugLogModuleDelegate, TTDebugLogConsoleViewDelegate>
 

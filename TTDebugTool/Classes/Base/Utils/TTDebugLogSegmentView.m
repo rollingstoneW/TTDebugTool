@@ -13,6 +13,8 @@
 @property (nonatomic, strong, nullable) UIView *bottomLine;
 @property (nonatomic, strong, nullable) UIView *sliderLine;
 
+@property (nonatomic, assign) CGFloat contentLastWidth;
+
 @end
 
 @implementation TTDebugLogSegmentView
@@ -35,7 +37,11 @@
 
 - (void)layoutSubviews {
     [super layoutSubviews];
-    [self scrollToIndexIfNeeded:self.currentIndex];
+    if (self.contentView.width == self.contentLastWidth) {
+        return;
+    }
+    self.contentLastWidth = self.contentView.width;
+    [self scrollToIndexIfNeeded:self.currentIndex animated:NO];
 }
 
 - (void)commonInit {
@@ -153,7 +159,7 @@
     if (currentIndex >= self.contentView.subviews.count || currentIndex < 0) {
         return;
     }
-    [self scrollToIndexIfNeeded:currentIndex];
+    [self scrollToIndexIfNeeded:currentIndex animated:YES];
     
     UIButton *selectedButton = self.contentView.subviews[_currentIndex];
     selectedButton.backgroundColor = self.normalButtonColor;
@@ -174,19 +180,17 @@
     }
 }
 
-- (void)scrollToIndexIfNeeded:(NSInteger)index {
+- (void)scrollToIndexIfNeeded:(NSInteger)index animated:(BOOL)animated {
     if (index >= self.titleButtons.count ||
         self.contentView.width == 0 ||
         self.contentView.contentSize.width == 0 ||
         self.contentView.contentSize.width <= self.contentView.width) {
         return;
     }
-    UIButton *selectedButton = self.contentView.subviews[_currentIndex];
-    if (CGRectContainsRect((CGRect){.size = self.contentView.size}, selectedButton.frame)) {
-        return;
-    }
-    self.contentView.contentOffset =
-    CGPointMake(MIN(selectedButton.left, self.contentView.contentSize.width - self.contentView.width), 0);
+    UIButton *selectedButton = self.contentView.subviews[index];
+    CGFloat left = MAX(selectedButton.left - (self.contentView.width / 2 - selectedButton.width / 2), 0);
+    CGPoint offset = CGPointMake(MIN(left, self.contentView.contentSize.width - self.contentView.width), 0);
+    [self.contentView setContentOffset:offset animated:animated];
 }
 
 - (void)setContentInsets:(UIEdgeInsets)contentInsets {

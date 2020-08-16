@@ -158,6 +158,8 @@ UIGestureRecognizerDelegate
 @property (nonatomic, assign) CGFloat lastContainerAlpha;
 @property (nonatomic, assign) CGFloat currentContainerAlpha;
 
+@property (nonatomic, strong) NSTimer *gotoBottomTimer;
+
 @end
 
 @implementation TTDebugLogConsoleView
@@ -334,7 +336,7 @@ UIGestureRecognizerDelegate
     gotoBottomButton.hidden = YES;
     gotoBottomButton.layer.masksToBounds = YES;
     [gotoBottomButton TTDebug_setLayerBorder:0.5 color:[UIColor whiteColor] cornerRadius:10];
-    [gotoBottomButton addTarget:self action:@selector(gotoBottom) forControlEvents:UIControlEventTouchUpInside];
+    [gotoBottomButton addTarget:self action:@selector(scrollToBottom) forControlEvents:UIControlEventTouchUpInside];
     [self.containerView addSubview:gotoBottomButton];
     self.gotoBottomButton = gotoBottomButton;
     [gotoBottomButton mas_makeConstraints:^(MASConstraintMaker *make) {
@@ -521,9 +523,16 @@ UIGestureRecognizerDelegate
     [self showFilterTableViewOnButton:button];
 }
 
-- (void)gotoBottom {
+- (void)scrollToTop {
+    self.tableView.hidden = NO;
+    self.tableView.contentOffset = CGPointZero;
+}
+
+- (void)scrollToBottom {
+    self.tableView.hidden = NO;
+    
     CGPoint off = self.tableView.contentOffset;
-    off.y = self.tableView.contentSize.height - self.tableView.bounds.size.height + self.tableView.contentInset.bottom;
+    off.y = MAX(0, self.tableView.contentSize.height - self.tableView.bounds.size.height + self.tableView.contentInset.bottom);
     [self.tableView setContentOffset:off animated:YES];
     
     self.gotoBottomButton.hidden = YES;
@@ -657,26 +666,20 @@ UIGestureRecognizerDelegate
 }
 
 - (void)reloadAtBottomIfNeeded {
-    [self.tableView reloadData];
+    [TTDebugLogConsoleView cancelPreviousPerformRequestsWithTarget:self selector:@selector(scrollToBottom) object:nil];
+    [TTDebugLogConsoleView cancelPreviousPerformRequestsWithTarget:self selector:@selector(scrollToTop) object:nil];
     
     BOOL autoScroll = [self canAutoScroll];
     if (!autoScroll) {
+        // 避免出现闪烁
+        self.tableView.hidden = YES;
         self.gotoBottomButton.hidden = YES;
-        self.tableView.contentOffset = CGPointZero;
+        [self scrollToTop];
+        [self performSelector:@selector(scrollToTop) withObject:nil afterDelay:0.1];
     }
+    [self.tableView reloadData];
     if (autoScroll && self.gotoBottomButton.hidden) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSInteger rows = [self tableView:self.tableView numberOfRowsInSection:0];
-            if (rows > 0) {
-                @try {
-                    [self.tableView scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:rows - 1 inSection:0] atScrollPosition:UITableViewScrollPositionBottom animated:YES];
-                } @catch (NSException *exception) {
-                    //TODO:weizhenning 还没找出来异常的原因，谁有线索请联系我😂
-                    TTDebugLog(@"日志出错 index:%zd,count:%zd,error:%@", self.moduleSegment.currentIndex, rows, exception);
-                } @finally {
-                }
-            }
-        });
+        [self performSelector:@selector(scrollToBottom) withObject:nil afterDelay:0.1];
     }
 }
 
@@ -800,7 +803,7 @@ UIGestureRecognizerDelegate
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
         if (gestureRecognizer.view == self.containerView) {
             // 拖拽
-            return !CGRectContainsPoint(self.tableView.frame, [gestureRecognizer locationInView:self.containerView]);
+            return [gestureRecognizer locationInView:self.containerView].y > self.tableView.bottom;
         }
     } else if ([gestureRecognizer isKindOfClass:[UIPinchGestureRecognizer class]]) {
         return CGRectContainsPoint(self.tableView.frame, [gestureRecognizer locationInView:self.containerView]);
