@@ -21,11 +21,11 @@ Pod::Spec.new do |s|
 开发调试工具，包含视图检测，日志、webview、页面、接口、基础信息展示，对象检查器等功能。
                        DESC
 
-  s.homepage         = 'https://git.zuoyebang.cc/native/TTDebugtool.git'
+  s.homepage         = 'https://github.com/rollingstoneW/TTDebugTool.git'
   # s.screenshots     = 'www.example.com/screenshots_1', 'www.example.com/screenshots_2'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
-  s.author           = { 'rollingstoneW' => 'rollingstoneW@zuoyebang.com' }
-  s.source           = { :git => 'git@git.zuoyebang.cc:native/TTDebugtool.git', :tag => s.version.to_s }
+  s.author           = { 'rollingstoneW' => '190268198@qq.com' }
+  s.source           = { :git => 'https://github.com/rollingstoneW/TTDebugTool.git', :tag => s.version.to_s }
 
   s.ios.deployment_target = '9.0'
 
@@ -45,11 +45,6 @@ Pod::Spec.new do |s|
       sp.frameworks = 'WebKit'
   end
   
-  s.subspec 'H5Action' do |sp|
-      sp.source_files = 'TTDebugTool/Classes/H5Action/**/*.{h,m,mm,c,cpp}'
-      sp.dependency 'ZYBWebBundle'
-      sp.dependency 'TTDebugTool/Base'
-  end
 
   s.subspec 'ViewHierarchy' do |sp|
       sp.source_files = 'TTDebugTool/Classes/ViewHierarchy/**/*.{h,m,mm,c,cpp}'
@@ -69,7 +64,7 @@ Pod::Spec.new do |s|
       sp.dependency 'TTDebugTool/Base'
   end
   
-  s.default_subspecs = 'H5Action', 'ViewHierarchy', 'Log', 'RuntimeInspector'
+  s.default_subspecs = 'ViewHierarchy', 'Log', 'RuntimeInspector'
 
   s.frameworks = 'UIKit'
   
