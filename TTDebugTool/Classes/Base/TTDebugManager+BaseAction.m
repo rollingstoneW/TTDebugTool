@@ -22,10 +22,6 @@
 #import "TTDebugLogAboutModule.h"
 #endif
 
-#if __has_include ("TTDebugH5Action.h") || __has_include (<TTDebugTool/TTDebugH5Action.h>)
-#import "TTDebugH5Action.h"
-#endif
-
 #if __has_include ("TTDebugRuntimeInspector.h") || __has_include (<TTDebugTool/TTDebugRuntimeInspector.h>)
 #import "TTDebugRuntimeInspector.h"
 #endif
@@ -48,11 +44,6 @@
 #if __has_include ("TTDebugLogAction.h") || __has_include (<TTDebugTool/TTDebugLogAction.h>)
         [self logAction],
 #endif
-        
-#if __has_include ("TTDebugH5Action.h") || __has_include (<TTDebugTool/TTDebugH5Action.h>)
-        [TTDebugH5Action new],
-#endif
-        
         [self closeCurrentViewControllerAction],
         [self hideFloatDebugViewAction],
     ].mutableCopy;
