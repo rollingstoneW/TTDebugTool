@@ -229,7 +229,7 @@ static CGFloat const TTFloatCircledWidth = 60;
 //+ (void)swizzleDidAddSubview {
 //    static dispatch_once_t onceToken;
 //    dispatch_once(&onceToken, ^{
-//        [self swizzleInstanceMethod:@selector(didAddSubview:) with:@selector(TTDebug_didAddSubview:)];
+//        [self TTDebug_swizzleInstanceMethod:@selector(didAddSubview:) with:@selector(TTDebug_didAddSubview:)];
 //    });
 //}
 //

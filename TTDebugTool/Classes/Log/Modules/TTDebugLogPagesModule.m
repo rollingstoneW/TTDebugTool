@@ -1,17 +1,18 @@
 //
-//  TTDebugLogSystemModule.m
+//  TTDebugLogPagesModule.m
 //  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/17.
 //
 
-#import "TTDebugLogSystemModule.h"
+#import "TTDebugLogPagesModule.h"
 #import <objc/runtime.h>
 
 static BOOL isTrackingEnabled = NO;
 static BOOL hasHooked = NO;
+static Class BaseVCClass;
 
-@interface TTDebugLogSystemModule ()
+@interface TTDebugLogPagesModule ()
 - (void)trackViewController:(UIViewController *)viewController method:(NSString *)method duration:(CFTimeInterval)duration;
 @end
 
@@ -24,17 +25,17 @@ static NSObject *ViewControllerFakeObserver;
 @end
 @implementation _TTDebugViewControllerObserverRemover
 - (void)dealloc {
-//    [self.target removeObserver:ViewControllerFakeObserver forKeyPath:ViewControllerFakePath];
-    [[TTDebugLogSystemModule sharedModule] trackViewController:self.target method:NSStringFromSelector(_cmd) duration:0];
+    [self.target removeObserver:ViewControllerFakeObserver forKeyPath:ViewControllerFakePath];
+    [[TTDebugLogPagesModule sharedModule] trackViewController:self.target method:NSStringFromSelector(_cmd) duration:0];
 }
 @end
 
 @implementation UIViewController (TTDebug)
 
 + (void)TTDebug_startTrack {
-//    ViewControllerFakeObserver = [[NSObject alloc] init];
-    [self swizzleInstanceMethod:@selector(initWithCoder:) with:@selector(TTDebug_initWithCoder:)];
-    [self swizzleInstanceMethod:@selector(initWithNibName:bundle:) with:@selector(TTDebug_initWithNibName:bundle:)];
+    ViewControllerFakeObserver = [[NSObject alloc] init];
+    [self TTDebug_swizzleInstanceMethod:@selector(initWithCoder:) with:@selector(TTDebug_initWithCoder:)];
+    [self TTDebug_swizzleInstanceMethod:@selector(initWithNibName:bundle:) with:@selector(TTDebug_initWithNibName:bundle:)];
 }
 
 - (instancetype)TTDebug_initWithCoder:(NSCoder *)coder {
@@ -61,7 +62,7 @@ static NSObject *ViewControllerFakeObserver;
     [self TTDebug_viewDidLoad];
     CFTimeInterval end = CFAbsoluteTimeGetCurrent();
     
-    [[TTDebugLogSystemModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)];
+    [[TTDebugLogPagesModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)];
 }
 
 - (void)TTDebug_viewWillAppear:(BOOL)animated {
@@ -74,46 +75,51 @@ static NSObject *ViewControllerFakeObserver;
     [self TTDebug_viewWillAppear:animated];
     CFTimeInterval end = CFAbsoluteTimeGetCurrent();
     
-    [[TTDebugLogSystemModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)];
+    [[TTDebugLogPagesModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)];
 }
 
 - (void)TTDebug_setupTrack {
-    if (objc_getAssociatedObject(self, ViewControllerObserverRemovePath)) {
+    if (!BaseVCClass) {
+        BaseVCClass = [UIViewController class];
+        NSString *customBaseVCClassName = [TTDebugLogPagesModule sharedModule].baseViewControllerClassName;
+        if (customBaseVCClassName.length && NSClassFromString(customBaseVCClassName)) {
+            BaseVCClass = NSClassFromString(customBaseVCClassName);
+        }
+    }
+    if (objc_getAssociatedObject(self, ViewControllerObserverRemovePath) || ![self isKindOfClass:BaseVCClass]) {
         return;
     }
     _TTDebugViewControllerObserverRemover *observer = [[_TTDebugViewControllerObserverRemover alloc] init];
     observer.target = self;
     objc_setAssociatedObject(self, ViewControllerObserverRemovePath, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
-    // 这种方式可以以控制器实例为维度，但是和UIViewController+ZYBMVCProfiler里的方法冲突，暂改为以类为维度进行hook
-//    [self addObserver:ViewControllerFakeObserver
-//           forKeyPath:ViewControllerFakePath
-//              options:NSKeyValueObservingOptionNew
-//              context:nil];
-//    Class kvoClass = object_getClass(self);
-//    [kvoClass swizzleInstanceMethod:@selector(viewDidLoad) with:@selector(TTDebug_viewDidLoad)];
-//    [kvoClass swizzleInstanceMethod:@selector(viewWillAppear:) with:@selector(TTDebug_viewWillAppear:)];
-    
+    // 这种方式可以以控制器实例为维度进行控制
+    [self addObserver:ViewControllerFakeObserver
+           forKeyPath:ViewControllerFakePath
+              options:NSKeyValueObservingOptionNew
+              context:nil];
+    Class kvoClass = object_getClass(self);
+
     static void * ViewControllerHasHookedKey = &ViewControllerHasHookedKey;
-    if (objc_getAssociatedObject(self.class, ViewControllerHasHookedKey)) {
+    if (objc_getAssociatedObject(kvoClass, ViewControllerHasHookedKey)) {
         return;
     }
-    objc_setAssociatedObject(self.class, ViewControllerHasHookedKey, @1, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    [self.class swizzleInstanceMethod:@selector(viewDidLoad) with:@selector(TTDebug_viewDidLoad)];
-    [self.class swizzleInstanceMethod:@selector(viewWillAppear:) with:@selector(TTDebug_viewWillAppear:)];
+    [kvoClass TTDebug_swizzleInstanceMethod:@selector(viewDidLoad) with:@selector(TTDebug_viewDidLoad)];
+    [kvoClass TTDebug_swizzleInstanceMethod:@selector(viewWillAppear:) with:@selector(TTDebug_viewWillAppear:)];
+    objc_setAssociatedObject(kvoClass, ViewControllerHasHookedKey, @1, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 @end
 
 static NSString * const SystemTrackingSwitchKey = @"system_switch";
 
-@implementation TTDebugLogSystemModule
+@implementation TTDebugLogPagesModule
 
 + (instancetype)sharedModule {
-    static TTDebugLogSystemModule *module;
+    static TTDebugLogPagesModule *module;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        module = [[TTDebugLogSystemModule alloc] init];
+        module = [[TTDebugLogPagesModule alloc] init];
     });
     return module;
 }
@@ -300,6 +306,11 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
         return YES;
     }
     return NO;
+}
+
+- (void)setBaseViewControllerClassName:(NSString *)baseViewControllerClassName {
+    _baseViewControllerClassName = baseViewControllerClassName;
+    BaseVCClass = nil;
 }
 
 @end

@@ -1,6 +1,6 @@
 //
 //  TTDebugUtils.h
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //
@@ -84,7 +84,7 @@ static void TTDebugLogInternal(const char *function, int lineNumber, NSString *f
     va_list args;
     va_start(args, format);
     NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
-    NSString *logMessage = [NSString stringWithFormat:@"[TTDebug]%s[%d]: %@", function, lineNumber, message];
+    NSString *logMessage = [NSString stringWithFormat:@"%s[%d]: %@", function, lineNumber, message];
     [[TTDebugLogDebugModule sharedModule] log:logMessage];
     va_end(args);
 }
@@ -99,8 +99,8 @@ FOUNDATION_EXTERN NSUserDefaults *TTDebugUserDefaults(void);
 
 @interface NSObject (TTDebug)
 
-+ (BOOL)swizzleInstanceMethod:(SEL)originalSel with:(SEL)newSel;
-+ (BOOL)swizzleClassMethod:(SEL)originalSel with:(SEL)newSel;
++ (BOOL)TTDebug_swizzleInstanceMethod:(SEL)originalSel with:(SEL)newSel;
++ (BOOL)TTDebug_swizzleClassMethod:(SEL)originalSel with:(SEL)newSel;
 
 - (void)TTDebug_setAssociateWeakObject:(id)object forKey:(void *)key;
 - (id _Nullable)TTDebug_associateWeakObjectForKey:(void *)key;

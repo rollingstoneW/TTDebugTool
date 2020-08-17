@@ -1,6 +1,6 @@
 //
 //  TTDebugLogConsoleView.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //
@@ -303,7 +303,6 @@ UIGestureRecognizerDelegate
     
     UIStackView *buttonStack = [[UIStackView alloc] init];
     buttonStack.distribution = UIStackViewDistributionFillEqually;
-//    [buttonStack zyb_add1pxBottomBorderWithColor:self.moduleSegment.backgroundColor];
     [self.containerView addSubview:buttonStack];
     [buttonStack mas_makeConstraints:^(MASConstraintMaker *make) {
         make.top.equalTo(searchBar.mas_bottom).offset(5);

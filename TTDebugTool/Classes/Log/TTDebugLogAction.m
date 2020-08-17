@@ -1,6 +1,6 @@
 //
 //  TTDebugLogAction.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/14.
 //
@@ -10,6 +10,7 @@
 #import "TTDebugUtils.h"
 #import "TTDebugInternalNotification.h"
 #import "TTDebugLogAboutModule.h"
+#import <objc/runtime.h>
 
 static NSString * const HasShownAboutKey = @"hasShownAbout";
 
@@ -51,6 +52,10 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
         _toDeleteItems = [NSMutableArray array];
         _showingTags = [NSMutableArray array];
         _searchWhenTextChange = [UIDevice currentDevice].TTDebug_cpuCount >= 4;
+        NSNumber *showInterLogSwitch = [TTDebugUserDefaults() objectForKey:NSStringFromSelector(@selector(showInterDebugLog))];
+        NSNumber *showInXcodeConsoleSwitch = [TTDebugUserDefaults() objectForKey:NSStringFromSelector(@selector(showInXcodeConsole))];
+        _showInterDebugLog = showInterLogSwitch ? showInterLogSwitch.boolValue : YES;
+        _showInXcodeConsole = showInXcodeConsoleSwitch.boolValue;
         
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(clean)
@@ -157,6 +162,10 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
 
 - (void)logModule:(id<TTDebugLogModule>)module didTrackLog:(TTDebugLogItem *)log {
     TTDebugAsync(^{
+        if (self.showInXcodeConsole &&
+            (![module respondsToSelector:@selector(disablesShowingInXcodeConsole)] || ![module disablesShowingInXcodeConsole])) {
+            [self NSLog:log];
+        }
         if (!log.message.length && !log.detail.length) {
             return;
         }
@@ -240,9 +249,6 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
         [self.toShowingItems enumerateObjectsUsingBlock:^(TTDebugLogItem * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
             if ([self isLogMatchFilter:obj messageContains:nil]) {
                 [self.showingItems addObject:obj];
-                if (self.showInXcodeConsole) {
-                    [self NSLog:obj];
-                }
                 shouldReload = YES;
             }
         }];
@@ -260,9 +266,9 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
 
 - (void)NSLog:(TTDebugLogItem *)item {
     if (item.detail.length) {
-        printf("\n%s [TTDebug] %s\ndetail:%s\n", item.timestampString.UTF8String, item.message.UTF8String, item.detail.UTF8String);
+        printf("\n%s [TTDebug] %s\ndetail:%s\n", item.timestampString.length ? item.timestampString.UTF8String : "", item.message.UTF8String, item.detail.UTF8String);
     } else {
-        printf("\n%s [TTDebug] %s\n", item.timestampString.UTF8String, item.message.UTF8String);
+        printf("\n%s [TTDebug] %s\n", item.timestampString.length ? item.timestampString.UTF8String : "", item.message.UTF8String);
     }
 }
 
@@ -389,6 +395,16 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
     if ([option isEqualToString:@"上传"]) {
         [TTDebugUtils showToast:@"敬请期待"];
     }
+}
+
+- (void)setShowInterDebugLog:(BOOL)showInterDebugLog {
+    [TTDebugUserDefaults() setObject:@(showInterDebugLog) forKey:NSStringFromSelector(@selector(showInterDebugLog))];
+    [TTDebugUserDefaults() synchronize];
+}
+
+- (void)setShowInXcodeConsole:(BOOL)showInXcodeConsole {
+    [TTDebugUserDefaults() setObject:@(showInXcodeConsole) forKey:NSStringFromSelector(@selector(showInXcodeConsole))];
+    [TTDebugUserDefaults() synchronize];
 }
 
 - (id<TTDebugLogModule>)currentModule {

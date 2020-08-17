@@ -1,6 +1,6 @@
 //
 //  TTDebugLogWebviewModule.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //
@@ -159,7 +159,7 @@ __VA_ARGS__; \
 static const void * debugDelegateKey = &debugDelegateKey;
 @implementation WKWebView (TTDebug)
 + (void)TTDebug_startTrack {
-    [self swizzleInstanceMethod:@selector(setNavigationDelegate:) with:@selector(TTDebug_setNavigationDelegate:)];
+    [self TTDebug_swizzleInstanceMethod:@selector(setNavigationDelegate:) with:@selector(TTDebug_setNavigationDelegate:)];
 }
 - (void)TTDebug_setNavigationDelegate:(id<WKNavigationDelegate>)navigationDelegate {
     if (navigationDelegate) {
@@ -174,7 +174,7 @@ static const void * debugDelegateKey = &debugDelegateKey;
 
 @implementation UIWebView (TTDebug)
 + (void)TTDebug_startTrack {
-    [self swizzleInstanceMethod:@selector(setDelegate:) with:@selector(TTDebug_setDelegate:)];
+    [self TTDebug_swizzleInstanceMethod:@selector(setDelegate:) with:@selector(TTDebug_setDelegate:)];
 }
 
 - (void)TTDebug_setDelegate:(id<UIWebViewDelegate>)delegate {
@@ -235,10 +235,6 @@ static void * StartTimeIntervalKey = &StartTimeIntervalKey;
     if (isTrackingRequest) {
         return;
     }
-    Class ZYBLiveActionRecord = NSClassFromString(@"ZYBLiveActionRecord");
-    if ([ZYBLiveActionRecord respondsToSelector:@selector(setActionDelegete:)]) {
-        [ZYBLiveActionRecord performSelector:@selector(setActionDelegete:) withObject:self];
-    }
 
     isTrackingRequest = YES;
     __weak __typeof(self) weakSelf = self;
@@ -296,11 +292,6 @@ static void * StartTimeIntervalKey = &StartTimeIntervalKey;
 - (void)stopTracking {
     isTrackingRequest = NO;
     DidTrackURL = nil;
-    
-    Class ZYBLiveActionRecord = NSClassFromString(@"ZYBLiveActionRecord");
-    if ([ZYBLiveActionRecord respondsToSelector:@selector(setActionDelegete:)]) {
-        [ZYBLiveActionRecord performSelector:@selector(setActionDelegete:) withObject:nil];
-    }
 }
 
 - (void)handleItemDidLongPress:(TTDebugLogItem *)item {

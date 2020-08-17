@@ -26,6 +26,10 @@
     return YES;
 }
 
+- (BOOL)disablesShowingInXcodeConsole {
+    return YES;
+}
+
 - (void)didRegist {
     NSArray *descriptions = @[@"欢迎使用TTDebugTool调试工具。",
                               [NSString stringWithFormat:@"版本: %@。", [TTDebugManager sharedManager].version],

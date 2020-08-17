@@ -1,6 +1,6 @@
 //
 //  TTDebugUtils.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //
@@ -47,7 +47,7 @@ NSUserDefaults *TTDebugUserDefaults(void) {
 
 @implementation NSObject (TTDebug)
 
-+ (BOOL)swizzleInstanceMethod:(SEL)originalSel with:(SEL)newSel {
++ (BOOL)TTDebug_swizzleInstanceMethod:(SEL)originalSel with:(SEL)newSel {
     Method originalMethod = class_getInstanceMethod(self, originalSel);
     Method newMethod = class_getInstanceMethod(self, newSel);
     if (!originalMethod || !newMethod) return NO;
@@ -67,7 +67,7 @@ NSUserDefaults *TTDebugUserDefaults(void) {
     return YES;
 }
 
-+ (BOOL)swizzleClassMethod:(SEL)originalSel with:(SEL)newSel {
++ (BOOL)TTDebug_swizzleClassMethod:(SEL)originalSel with:(SEL)newSel {
     Class class = object_getClass(self);
     Method originalMethod = class_getInstanceMethod(class, originalSel);
     Method newMethod = class_getInstanceMethod(class, newSel);

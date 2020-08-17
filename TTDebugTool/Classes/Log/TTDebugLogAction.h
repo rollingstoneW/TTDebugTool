@@ -1,6 +1,6 @@
 //
 //  TTDebugLogAction.h
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/14.
 //
@@ -21,6 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic,   copy) NSString *currentTag;
 
 @property (nonatomic, assign) BOOL clearItemsWhenUnregist;
+
 @property (nonatomic, assign) BOOL showInterDebugLog;
 
 @property (nonatomic, assign) BOOL showInXcodeConsole;

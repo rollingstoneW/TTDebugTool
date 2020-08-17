@@ -19,7 +19,7 @@
 }
 
 - (void)log:(NSString *)log detail:(NSString *)detail level:(TTDebugLogLevel)level tag:(NSString *)tag {
-    TTDebugLogItem *item = [[TTDebugLogItem alloc] initWithTimestamp:NO];
+    TTDebugLogItem *item = [[TTDebugLogItem alloc] init];
     item.message = log;
     item.level = level;
     item.tag = tag;

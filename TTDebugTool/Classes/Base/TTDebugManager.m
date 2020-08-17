@@ -1,6 +1,6 @@
 //
 //  TTDebugManager.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/13.
 //
@@ -25,6 +25,11 @@
 @implementation TTDebugManager
 
 + (void)load {
+    NSNumber *enabledSwitch = [TTDebugUserDefaults() objectForKey:NSStringFromSelector(@selector(enabled))];
+    BOOL isEnabled = enabledSwitch ? enabledSwitch.boolValue : YES;
+    if (!isEnabled) {
+        return;
+    }
 #if DEBUG
     // DEBUG 默认注册基础功能
     [[TTDebugManager sharedManager] registBaseActionsIfNeeded];
@@ -37,9 +42,12 @@
     __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
         [[NSNotificationCenter defaultCenter] removeObserver:observer];
         
-        // 启用调试功能,后期加开关控制
-        [TTDebugManager sharedManager].enabled = YES;
-        if (TTDebugManager.isShowing) {
+        NSNumber *enabledSwitch = [TTDebugUserDefaults() objectForKey:NSStringFromSelector(@selector(enabled))];
+        BOOL isEnabled = enabledSwitch ? enabledSwitch.boolValue : YES;
+        if (isEnabled) {
+            [TTDebugManager sharedManager].enabled = YES;
+        }
+        if (isEnabled && TTDebugManager.isShowing) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [[TTDebugManager sharedManager] showFloatDebugView];
             });
@@ -66,10 +74,13 @@
 }
 
 - (void)setEnabled:(BOOL)enabled {
+    [TTDebugUserDefaults() setObject:@(enabled) forKey:NSStringFromSelector(@selector(enabled))];
+    [TTDebugUserDefaults() synchronize];
     if (enabled == _enabled) {
         return;
     }
-    TTDebugLog(@"%@", enabled ? @"调试启用" : @"调试金庸");
+    
+    TTDebugLog(@"%@", enabled ? @"调试启用" : @"调试禁用");
     _enabled = enabled;
     if (enabled) {
         if (!self.statusBarTapGesture) {
@@ -84,9 +95,11 @@
             [[[UIApplication sharedApplication].delegate window] addGestureRecognizer:self.statusBarTapGesture];
         }
         self.statusBarTapGesture.enabled = YES;
+        [self registBaseActionsIfNeeded];
     } else {
         self.statusBarTapGesture.enabled = NO;
         [self unregistAllActions];
+        [self hideFloatDebugView];
     }
 }
 
@@ -170,6 +183,7 @@
 }
 
 - (void)unregistAllActions {
+    self.hasRegistedBaseActions = NO;
     [self.groups enumerateObjectsUsingBlock:^(TTDebugActionGroup * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         [self unregistDebugActionsForGroup:obj.title];
     }];
@@ -193,7 +207,6 @@
     self.debugView = nil;
     if (self.unregistAllActionsWhenHidden) {
         [self unregistAllActions];
-        self.hasRegistedBaseActions = NO;
     }
     TTDebugManager.isShowing = NO;
     [[NSNotificationCenter defaultCenter] removeObserver:self name:TTDebugDidAddViewOnWindowNotificationName object:nil];

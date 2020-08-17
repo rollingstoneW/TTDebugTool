@@ -56,7 +56,6 @@ Pod::Spec.new do |s|
       sp.dependency 'TTDebugTool/Base'
       sp.frameworks = 'CoreTelephony'
       sp.dependency 'AFNetworking'
-#      sp.dependency 'ZYBLcsConnection'
   end
   
   s.subspec 'RuntimeInspector' do |sp|

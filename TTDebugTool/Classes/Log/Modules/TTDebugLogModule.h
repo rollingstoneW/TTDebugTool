@@ -1,6 +1,6 @@
 //
 //  TTDebugLogModule.h
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //
@@ -55,6 +55,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)handleSettingOption:(NSString *)option;
 // 是否自动滚动到底部
 - (BOOL)disablesAutoScroll;
+// 是否禁用在xcode的控制台打印
+- (BOOL)disablesShowingInXcodeConsole;
 // 空消息提示
 - (NSString *)emptyTips;
 

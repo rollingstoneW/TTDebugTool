@@ -1,6 +1,6 @@
 //
 //  TTDebugManager+BaseAction.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/14.
 //
@@ -17,7 +17,7 @@
 #import "TTDebugLogWebviewModule.h"
 #import "TTDebugLogNetworkRequestModule.h"
 #import "TTDebugLogBasicInfoModule.h"
-#import "TTDebugLogSystemModule.h"
+#import "TTDebugLogPagesModule.h"
 #import "TTDebugLogDebugModule.h"
 #import "TTDebugLogAboutModule.h"
 #endif
@@ -30,7 +30,7 @@
 
 // 添加基础工具
 + (NSArray<TTDebugAction *> *)baseActions {
-    NSMutableArray<TTDebugAction *> *array = @[
+    return @[
 #if __has_include ("TTDebugViewHierarchyAction.h") || __has_include (<TTDebugTool/TTDebugViewHierarchyAction.h>)
         [TTDebugViewHierarchyAction viewHierarchyAction],
         [TTDebugViewHierarchyAction selectViewAction],
@@ -46,12 +46,7 @@
 #endif
         [self closeCurrentViewControllerAction],
         [self hideFloatDebugViewAction],
-    ].mutableCopy;
-    
-    if (NSClassFromString(@"ZYBHideConfigViewController")) {
-        [array insertObject:[self gotoDebugViewControllerAction] atIndex:array.count - 2];
-    }
-    return array.copy;
+    ];
 }
 
 #if __has_include ("TTDebugLogAction.h") || __has_include (<TTDebugTool/TTDebugLogAction.h>)
@@ -70,7 +65,7 @@
         // 基础信息
         [action registModule:[TTDebugLogBasicInfoModule new]];
         // 系统活动
-        [action registModule:[TTDebugLogSystemModule sharedModule]];
+        [action registModule:[TTDebugLogPagesModule sharedModule]];
         // 内部日志
         [action registModule:[TTDebugLogDebugModule sharedModule]];
         // 关于
@@ -79,21 +74,6 @@
     return action;
 }
 #endif
-
-+ (TTDebugAction *)gotoDebugViewControllerAction {
-    return [TTDebugAction actionWithTitle:@"调试页面" handler:^(TTDebugAction * _Nonnull action) {
-        UIViewController *debug = [[NSClassFromString(@"ZYBHideConfigViewController") alloc] init];
-        debug.hidesBottomBarWhenPushed = YES;
-        UIViewController *current = [TTDebugUtils currentViewController];
-        if (current.navigationController) {
-            [current.navigationController pushViewController:debug animated:YES];
-        } else {
-            Class naviClass = NSClassFromString(@"BaseNavViewController") ?: [UINavigationController class];
-            UINavigationController *navi = [[naviClass alloc] initWithRootViewController:debug];
-            [current presentViewController:navi animated:YES completion:nil];
-        }
-    }];
-}
 
 + (TTDebugAction *)closeCurrentViewControllerAction {
     return [TTDebugAction actionWithTitle:@"关闭当前页" handler:^(TTDebugAction * _Nonnull action) {

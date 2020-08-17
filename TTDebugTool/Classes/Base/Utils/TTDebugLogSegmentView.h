@@ -1,6 +1,6 @@
 //
 //  TTDebugLogSegmentView.h
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //

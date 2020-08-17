@@ -1,6 +1,6 @@
 //
 //  TTDebugLogBasicInfoModule.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/16.
 //
@@ -78,7 +78,7 @@
         [self insertInfoWithKey:@"硬盘剩余大小" value:[self sizeStringFromByte:[UIDevice currentDevice].TTDebug_diskSpaceFree]];
         [self insertInfoWithKey:@"运营商" value:[UIDevice TTDebug_NetworkOperationName]];
         [self insertInfoWithKey:@"IP地址" value:[UIDevice TTDebug_deviceIPAdress]];
-        NSArray *DNSArray = [UIDevice TTDebug_getDNSWithDormain:@"www.zybang.com"];
+        NSArray *DNSArray = [UIDevice TTDebug_getDNSWithDormain:@"www.baidu.com"];
         for (NSInteger i = 0; i < DNSArray.count; i++) {
             [self insertInfoWithKey:@"DNS地址" value:DNSArray[i]];
         }

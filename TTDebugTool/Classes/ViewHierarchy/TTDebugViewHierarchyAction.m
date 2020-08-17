@@ -1,6 +1,6 @@
 //
 //  TTDebugViewHierarchyAction.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/14.
 //
@@ -17,7 +17,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
 
 + (void)TTDebug_captureTapView:(void(^)(UIView *view))block {
     TTDebugTapedViewBlock = block;
-    [self swizzleInstanceMethod:@selector(sendEvent:) with:@selector(TTDebug_sendEvent:)];
+    [self TTDebug_swizzleInstanceMethod:@selector(sendEvent:) with:@selector(TTDebug_sendEvent:)];
 }
 
 - (void)TTDebug_sendEvent:(UIEvent *)event {
@@ -36,7 +36,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
 @implementation UIView (TTDebug)
 
 + (void)TTDebug_captureTapView {
-    [self swizzleInstanceMethod:@selector(isUserInteractionEnabled) with:@selector(TTDebug_isUserInteractionEnabled)];
+    [self TTDebug_swizzleInstanceMethod:@selector(isUserInteractionEnabled) with:@selector(TTDebug_isUserInteractionEnabled)];
 }
 
 - (BOOL)TTDebug_isUserInteractionEnabled {
@@ -48,7 +48,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
 @implementation UIControl (TTDebug)
 
 + (void)TTDebug_captureTapView {
-    [self swizzleInstanceMethod:@selector(isEnabled) with:@selector(TTDebug_isEnabled)];
+    [self TTDebug_swizzleInstanceMethod:@selector(isEnabled) with:@selector(TTDebug_isEnabled)];
 }
 
 - (BOOL)TTDebug_isEnabled {

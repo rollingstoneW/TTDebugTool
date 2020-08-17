@@ -1,6 +1,6 @@
 //
 //  TTDebugLogNetworkRequestModule.m
-//  ZYBLiveKit
+//  TTDebugTool
 //
 //  Created by Rabbit on 2020/7/15.
 //
@@ -131,7 +131,7 @@ static void(^DidTrackRequest)(NSURLRequest *request, NSInteger code, NSDictionar
 @implementation NSURLSession (TTDebug)
 
 + (void)TTDebug_startTrack {
-    [self swizzleClassMethod:@selector(sessionWithConfiguration:delegate:delegateQueue:) with:@selector(TTDebug_sessionWithConfiguration:delegate:delegateQueue:)];
+    [self TTDebug_swizzleClassMethod:@selector(sessionWithConfiguration:delegate:delegateQueue:) with:@selector(TTDebug_sessionWithConfiguration:delegate:delegateQueue:)];
     
 #if __has_include(<AFNetworking/AFURLSessionManager.h>)
     // AFNetworking已经hook过了，直接用它的通知 
@@ -181,7 +181,7 @@ static void(^DidTrackRequest)(NSURLRequest *request, NSInteger code, NSDictionar
                     originalAFResumeIMP != classResumeIMP) {
                     Method resumeMethod = class_getInstanceMethod(self, @selector(TTDebug_resume));
                     if (class_addMethod(currentClass, @selector(TTDebug_resume), method_getImplementation(resumeMethod), method_getTypeEncoding(resumeMethod))) {
-                        [currentClass swizzleInstanceMethod:@selector(resume) with:@selector(TTDebug_resume)];
+                        [currentClass TTDebug_swizzleInstanceMethod:@selector(resume) with:@selector(TTDebug_resume)];
                     }
                 }
                 currentClass = [currentClass superclass];
