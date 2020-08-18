@@ -26,9 +26,9 @@
     return YES;
 }
 
-- (BOOL)disablesShowingInXcodeConsole {
-    return YES;
-}
+//- (BOOL)disablesShowingInXcodeConsole {
+//    return YES;
+//}
 
 - (void)didRegist {
     NSArray *descriptions = @[@"欢迎使用TTDebugTool调试工具。",
@@ -45,7 +45,7 @@
                               @"    - Basic: 展示系统和设备基础信息。",
                               @"    - Pages: 记录Application活动和控制器的展示和销毁。",
                               @"    - InterLog: 调试工具内部日志。",
-                              @"    - 手势：在日志非列表区域可以拖拽移动日志列表，列表区域双指捏合放大缩小日志列表，右侧灰色区域上下滑动改变透明度，全透明时列表区域透传点击事件。",
+                              @"    - 手势：在日志下方按钮区域可以拖拽移动日志列表，列表区域双指捏合放大缩小日志列表，右侧灰色区域上下滑动改变透明度，全透明时列表区域透传点击事件。",
                               @"TODO:",
                               @"* 沙盒文件查看。",
                               @"* NSUserDefaults查看。",
