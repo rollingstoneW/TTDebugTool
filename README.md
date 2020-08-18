@@ -11,7 +11,7 @@ iOS调试工具
 
 -  ✅检查器: 可以查看所选对象的属性、方法，方法支持调用。默认精选了UIApplication、AppDelegate、NSNotificationCenter、NSUserDefaults和一个代码示例，可以通过[TTDebugRuntimeInspector registFavorites:]注册精选功能。目前代码执行，仅支持方法调用，详细见TTDebugOCExpression。
 
--  ✅日志: 单条默认展示前三行，点击展开全部和详细信息。
+-  ✅日志: 单条默认展示前三行，点击展开全部和详细信息。日志功能除了Log和Basic都是默认不开启的，需要手动开启才可以启动服务。
 
 -  ----✅Log: 通过TTDebugLogger打印的日志。
 
@@ -38,3 +38,8 @@ iOS调试工具
 -  数据网页端浏览。
 
 -  更好的转屏实现。
+
+# Example
+
+TTDemo:https://github.com/rollingstoneW/TTDemo
+To run the example project, clone TTDemo, and run pod install.
