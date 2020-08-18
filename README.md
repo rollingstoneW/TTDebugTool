@@ -39,6 +39,16 @@ iOS调试工具
 
 -  更好的转屏实现。
 
+# ScreenShots
+![](./Images/menu.png)
+![](./Images/viewHierarchy.png)
+![](./Images/viewControllerHierarchy.png)
+![](./Images/viewSelection.png)
+![](./Images/inspector.png)
+![](./Images/inspectorResult.png)
+![](./Images/inspectorDetail.png)
+![](./Images/log.png)
+
 # Example
 
 TTDemo:https://github.com/rollingstoneW/TTDemo
