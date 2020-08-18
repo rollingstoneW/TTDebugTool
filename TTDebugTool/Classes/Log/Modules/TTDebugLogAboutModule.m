@@ -26,9 +26,9 @@
     return YES;
 }
 
-//- (BOOL)disablesShowingInXcodeConsole {
-//    return YES;
-//}
+- (BOOL)disablesShowingInXcodeConsole {
+    return YES;
+}
 
 - (void)didRegist {
     NSArray *descriptions = @[@"欢迎使用TTDebugTool调试工具。",
