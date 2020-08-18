@@ -131,7 +131,7 @@ typedef NS_ENUM(NSUInteger, TTDebugViewInfoCellStyle) {
     }
     
     if (hasInput) {
-        self.input = [self textFieldWithPlaceholder:@"请输入参数，以逗号隔开" invoke:@"触发"];
+        self.input = [self textFieldWithPlaceholder:@"请输入参数，以英文分号隔开" invoke:@"触发"];
         [self.contentView addSubview:self.input];
         [self.input mas_makeConstraints:^(MASConstraintMaker *make) {
             make.top.equalTo(self.text.mas_bottom).offset(10);
@@ -516,10 +516,10 @@ typedef NS_ENUM(NSUInteger, TTDebugViewInfoCellStyle) {
 - (void)invokeSelector:(NSString *)selector params:(NSString *)params {
     [self.containerView endEditing:YES];
     
-    TTDebugOCExpression *expression = [TTDebugOCExpression expressionWithTitle:nil
-                                                                         className:nil
-                                                                          selector:selector
-                                                                            params:params];
+    TTDebugOCExpression *expression = [TTDebugOCExpression expressionWithTitle:@""
+                                                                     className:nil
+                                                                      selector:selector
+                                                                        params:params];
     expression.target = self.object;
     
     NSError *error;
