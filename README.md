@@ -40,14 +40,11 @@ iOS调试工具
 -  更好的转屏实现。
 
 # ScreenShots
-![](./Images/menu.png)
-![](./Images/viewHierarchy.png)
-![](./Images/viewControllerHierarchy.png)
-![](./Images/viewSelection.png)
-![](./Images/inspector.png)
-![](./Images/inspectorResult.png)
-![](./Images/inspectorDetail.png)
-![](./Images/log.png)
+
+<img src="./Images/menu.png" width = "300" alt="菜单" /><img src="./Images/viewHierarchy.png" width = "300" alt="视图层级" />  
+<img src="./Images/viewControllerHierarchy.png" width = "300" alt="控制器层级" /><img src="./Images/viewSelection.png" width = "300" alt="选择视图" />  
+<img src="./Images/inspector.png" width = "300" alt="检查器" /><img src="./Images/inspectorResult.png" width = "300" alt="运行结果" />  
+<img src="./Images/inspectorDetail.png" width = "300" alt="对象检查视图" /><img src="./Images/log.png" width = "300" alt="日志" />  
 
 # Example
 
