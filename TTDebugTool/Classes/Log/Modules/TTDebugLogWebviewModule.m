@@ -16,7 +16,7 @@ static BOOL isTrackingRequest = NO;
 static BOOL hasHooked = NO;
 static void(^DidTrackURL)(NSString *event, UIView *web, NSString *url, NSString *title, NSString *vc, NSError *error, NSInteger style);
 
-@interface TTDebugWebViewMonitor : NSObject <WKNavigationDelegate, UIWebViewDelegate>
+@interface TTDebugWebViewMonitor : NSObject <WKNavigationDelegate>
 
 @property (nullable, nonatomic, weak) id target;
 
@@ -108,7 +108,6 @@ static void(^DidTrackURL)(NSString *event, UIView *web, NSString *url, NSString 
 __VA_ARGS__; \
 }
 #define TTDebugTrackWK(event, error, style) if (isTrackingRequest) !DidTrackURL ?: DidTrackURL(event, webView, webView.URL.absoluteString, webView.title, [TTDebugUtils viewControllerOfView:webView].description, error, style);
-#define TTDebugTrackUI(event, title, error, style) if (isTrackingRequest) !DidTrackURL ?: DidTrackURL(event, webView, webView.request.URL.absoluteString, title, [TTDebugUtils viewControllerOfView:webView].description, error, style);
 
 - (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(null_unspecified WKNavigation *)navigation {
     TTDebugRespondsSEL([self.target webView:webView didStartProvisionalNavigation:navigation])
@@ -135,24 +134,8 @@ __VA_ARGS__; \
     TTDebugTrackWK(@"挂起", nil, 2)
 }
 
-- (void)webViewDidStartLoad:(UIWebView *)webView {
-    TTDebugRespondsSEL([self.target webViewDidStartLoad:webView])
-    TTDebugTrackUI(@"开始", nil, nil, 0)
-}
-
-- (void)webViewDidFinishLoad:(UIWebView *)webView {
-    TTDebugRespondsSEL([self.target webViewDidFinishLoad:webView])
-    TTDebugTrackUI(@"完成", [webView stringByEvaluatingJavaScriptFromString:@"document.title"], nil, 1)
-}
-
-- (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error {
-    TTDebugRespondsSEL([self.target webView:webView didFailLoadWithError:error])
-    TTDebugTrackUI(@"失败", nil, error, 2)
-}
-
 #undef TTDebugRespondsSEL
 #undef TTDebugTrackWK
-#undef TTDebugTrackUI
 
 @end
 
@@ -169,18 +152,6 @@ static const void * debugDelegateKey = &debugDelegateKey;
     } else {
         objc_setAssociatedObject(self, debugDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-}
-@end
-
-@implementation UIWebView (TTDebug)
-+ (void)TTDebug_startTrack {
-    [self TTDebug_swizzleInstanceMethod:@selector(setDelegate:) with:@selector(TTDebug_setDelegate:)];
-}
-
-- (void)TTDebug_setDelegate:(id<UIWebViewDelegate>)delegate {
-    id<UIWebViewDelegate> newDelegate = [[TTDebugWebViewMonitor alloc] initWithTarget:delegate];
-    [self TTDebug_setDelegate:newDelegate];
-    objc_setAssociatedObject(self, debugDelegateKey, newDelegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 @end
 
@@ -284,7 +255,6 @@ static void * StartTimeIntervalKey = &StartTimeIntervalKey;
     };
     if (!hasHooked) {
         [WKWebView TTDebug_startTrack];
-        [UIWebView TTDebug_startTrack];
         hasHooked = YES;
     }
 }

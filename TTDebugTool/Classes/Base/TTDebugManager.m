@@ -105,7 +105,10 @@
 
 - (void)registBaseActionsIfNeeded {
     if (!self.hasRegistedBaseActions) {
-        [self registDebugActions:[TTDebugManager baseActions] forGroup:@"基础工具"];
+        NSArray<TTDebugActionGroup *> *groups = [TTDebugManager baseGroups];
+        [groups enumerateObjectsUsingBlock:^(TTDebugActionGroup * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            [self registDebugActions:obj.actions forGroup:obj.title];
+        }];
         self.hasRegistedBaseActions = YES;
     }
 }
@@ -194,6 +197,11 @@
         [self registBaseActionsIfNeeded];
         self.debugView = [[TTFloatCircledDebugView alloc] initWithTitleForNormal:@"调试" expanded:@"收起" groups:self.groups];
         self.debugView.tapOutsideToDismiss = YES;
+        __weak __typeof(self) weakSelf = self;
+        self.debugView.shouldLongPressDismiss = ^BOOL{
+            [weakSelf cleanup];
+            return YES;
+        };
     }
     [self.debugView show];
     self.debugView.top = [UIDevice TTDebug_navigationBarBottom] + 10;
@@ -205,11 +213,16 @@
 - (void)hideFloatDebugView {
     [self.debugView dismissAnimated:YES];
     self.debugView = nil;
+    [self cleanup];
+}
+
+- (void)cleanup {
     if (self.unregistAllActionsWhenHidden) {
         [self unregistAllActions];
     }
     TTDebugManager.isShowing = NO;
     [[NSNotificationCenter defaultCenter] removeObserver:self name:TTDebugDidAddViewOnWindowNotificationName object:nil];
+    [TTFloatCircledDebugWindow destory];
     TTDebugLog(@"隐藏悬浮按钮");
 }
 

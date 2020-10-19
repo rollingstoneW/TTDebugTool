@@ -11,7 +11,7 @@
 
 static BOOL TTDebugIsCapturingTapView = NO;
 static void(^TTDebugTapedViewBlock)(UIView *view);
-static LiveViewHierarchyItem *itemAtTapedView;
+static TTDebugExpandableListItem *itemAtTapedView;
 
 @implementation UIApplication (TTDebug)
 
@@ -33,7 +33,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
 
 @end
 
-@implementation UIView (TTDebug)
+@implementation UIView (TTDebugPrivate)
 
 + (void)TTDebug_captureTapView {
     [self TTDebug_swizzleInstanceMethod:@selector(isUserInteractionEnabled) with:@selector(TTDebug_isUserInteractionEnabled)];
@@ -59,11 +59,26 @@ static LiveViewHierarchyItem *itemAtTapedView;
 
 @implementation TTDebugViewHierarchyAction
 
++ (TTDebugActionGroup *)group {
+    TTDebugActionGroup *group = [[TTDebugActionGroup alloc] init];
+    group.title = @"视图工具";
+    group.actions = @[[self viewHierarchyAction], [self selectViewAction], [self viewControllerHierarchyAction], [TTDebugAction actionWithTitle:@"关闭当前页" handler:^(TTDebugAction * _Nonnull action) {
+        UIViewController *current = [TTDebugUtils currentViewController];
+        if (current.navigationController.viewControllers.count > 1 &&
+            current == current.navigationController.topViewController) {
+            [current.navigationController popViewControllerAnimated:YES];
+        } else if (current.presentingViewController) {
+            [current dismissViewControllerAnimated:YES completion:nil];
+        }
+    }]];
+    return group;
+}
+
 + (instancetype)viewHierarchyAction {
     TTDebugViewHierarchyAction *action = [[self alloc] init];
     action.title = @"视图层级";
     action.handler = ^(TTDebugViewHierarchyAction * _Nonnull action) {
-        LiveViewHierarchyItem *items = [action hierarchyItemsInView:[TTDebugUtils currentViewController].view atTapedView:nil];
+        TTDebugExpandableListItem *items = [action hierarchyItemsInView:[TTDebugUtils currentViewControllerNotInDebug:YES].view atTapedView:nil];
         [TTDebugViewHierarchyAlertView showWithHerirachyItems:@[items] selectedItem:nil isControllers:NO].action = action;
     };
     return action;
@@ -83,7 +98,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
     TTDebugViewHierarchyAction *action = [[self alloc] init];
     action.title = @"控制器层级";
     action.handler = ^(TTDebugViewHierarchyAction * _Nonnull action) {
-        NSArray<LiveViewHierarchyItem *> *items = [action viewControllerHierarchyInAllWindows];
+        NSArray<TTDebugExpandableListItem *> *items = [action viewControllerHierarchyInAllWindows];
         [TTDebugViewHierarchyAlertView showWithHerirachyItems:items selectedItem:itemAtTapedView isControllers:YES].action = action;
     };
     return action;
@@ -99,13 +114,13 @@ static LiveViewHierarchyItem *itemAtTapedView;
     __weak __typeof (self) weakSelf = self;
     [UIApplication TTDebug_captureTapView:^(UIView *view) {
         UIView *containerView;
-        UIView *VCView = [TTDebugUtils currentViewController].view;
+        UIView *VCView = [TTDebugUtils currentViewControllerNotInDebug:YES].view;
         if ([view isDescendantOfView:VCView]) {
             containerView = VCView;
         } else {
             containerView = view.window;
         }
-        LiveViewHierarchyItem *items = [weakSelf hierarchyItemsInView:containerView atTapedView:view];
+        TTDebugExpandableListItem *items = [weakSelf hierarchyItemsInView:containerView atTapedView:view];
         items.isOpen = YES;
         [self showAnimationInView:view completion:^{
             [TTDebugViewHierarchyAlertView showWithHerirachyItems:@[items] selectedItem:itemAtTapedView isControllers:NO].action = weakSelf;
@@ -144,21 +159,21 @@ static LiveViewHierarchyItem *itemAtTapedView;
     });
 }
 
-- (NSArray<LiveViewHierarchyItem *> *)hierarchyItemsInAllWindows {
-    NSMutableArray<LiveViewHierarchyItem *> *items = [NSMutableArray array];
+- (NSArray<TTDebugExpandableListItem *> *)hierarchyItemsInAllWindows {
+    NSMutableArray<TTDebugExpandableListItem *> *items = [NSMutableArray array];
     for (UIWindow *window in [UIApplication sharedApplication].windows) {
-        LiveViewHierarchyItem *windowItem = [self hierarchyItemsInView:window atTapedView:nil];
+        TTDebugExpandableListItem *windowItem = [self hierarchyItemsInView:window atTapedView:nil];
         windowItem.isOpen = YES;
         [items addObject:windowItem];
     }
     return items;
 }
 
-- (NSArray<LiveViewHierarchyItem *> *)viewControllerHierarchyInAllWindows {
-    NSMutableArray<LiveViewHierarchyItem *> *items = [NSMutableArray array];
-    UIViewController *currentVC = [TTDebugUtils currentViewController];
+- (NSArray<TTDebugExpandableListItem *> *)viewControllerHierarchyInAllWindows {
+    NSMutableArray<TTDebugExpandableListItem *> *items = [NSMutableArray array];
+    UIViewController *currentVC = [TTDebugUtils currentViewControllerNotInDebug:YES];
     for (UIWindow *window in [UIApplication sharedApplication].windows) {
-        LiveViewHierarchyItem *windowItem = [self hierarchyViewControlllerItemsInWindow:window atCurrentController:currentVC];
+        TTDebugExpandableListItem *windowItem = [self hierarchyViewControlllerItemsInWindow:window atCurrentController:currentVC];
         if (windowItem) {
             [items addObject:windowItem];
         }
@@ -166,21 +181,21 @@ static LiveViewHierarchyItem *itemAtTapedView;
     return items;
 }
 
-- (LiveViewHierarchyItem *)hierarchyViewControlllerItemsInWindow:(UIWindow *)window atCurrentController:(UIViewController *)current {
+- (TTDebugExpandableListItem *)hierarchyViewControlllerItemsInWindow:(UIWindow *)window atCurrentController:(UIViewController *)current {
     return [self hierarchyViewControlllerItemsInController:window.rootViewController atCurrentController:current parent:nil];
 }
 
-- (LiveViewHierarchyItem *)hierarchyViewControlllerItemsInController:(UIViewController *)controller
+- (TTDebugExpandableListItem *)hierarchyViewControlllerItemsInController:(UIViewController *)controller
                                                  atCurrentController:(UIViewController *)current
-                                                              parent:(LiveViewHierarchyItem *)parent {
+                                                              parent:(TTDebugExpandableListItem *)parent {
     if (!controller) {
         return nil;
     }
-    LiveViewHierarchyItem *item = [self itemForController:controller];
+    TTDebugExpandableListItem *item = [self itemForController:controller];
     item.parent = parent;
     if (controller == current) {
         itemAtTapedView = item;
-        LiveViewHierarchyItem *newParent = parent;
+        TTDebugExpandableListItem *newParent = parent;
         while (newParent) {
             newParent.isOpen = YES;
             newParent = newParent.parent;
@@ -188,7 +203,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
     }
     
     if (controller.childViewControllers.count) {
-        NSMutableArray<LiveViewHierarchyItem *> *childs = [NSMutableArray array];
+        NSMutableArray<TTDebugExpandableListItem *> *childs = [NSMutableArray array];
         NSMutableArray *childViewControllers = [NSMutableArray array];
         if (controller.childViewControllers) {
             [childViewControllers addObjectsFromArray:controller.childViewControllers];
@@ -197,10 +212,10 @@ static LiveViewHierarchyItem *itemAtTapedView;
             [childViewControllers addObject:controller.presentedViewController];
         }
         for (UIViewController *childController in childViewControllers) {
-            LiveViewHierarchyItem *childItem = [self hierarchyViewControlllerItemsInController:childController atCurrentController:current parent:item];
+            TTDebugExpandableListItem *childItem = [self hierarchyViewControlllerItemsInController:childController atCurrentController:current parent:item];
             if (childItem) {
                 if (childController == controller.presentedViewController) {
-                    childItem.viewDescription = [@"presenting " stringByAppendingString:childItem.viewDescription];
+                    childItem.title = [@"presenting " stringByAppendingString:childItem.title];
                 }
                 [childs addObject:childItem];
             }
@@ -212,18 +227,18 @@ static LiveViewHierarchyItem *itemAtTapedView;
     return item;
 }
 
-- (LiveViewHierarchyItem *)itemForController:(UIViewController *)controller {
-    LiveViewHierarchyItem *item = [[LiveViewHierarchyItem alloc] init];
-    item.view = controller;
-    item.viewDescription = [TTDebugUtils descriptionOfObject:controller];
-    item.canClose = [TTDebugUtils canRemoveObjectFromViewHierarchy:controller];
+- (TTDebugExpandableListItem *)itemForController:(UIViewController *)controller {
+    TTDebugExpandableListItem *item = [[TTDebugExpandableListItem alloc] init];
+    item.object = controller;
+    item.title = [TTDebugUtils descriptionOfObject:controller];
+    item.canDelete = [TTDebugUtils canRemoveObjectFromViewHierarchy:controller];
     return item;
 }
 
-- (LiveViewHierarchyItem *)hierarchyItemsInView:(UIView *)view atTapedView:(UIView * _Nullable)tapedView {
-    LiveViewHierarchyItem *item = [self recursiveHierarchyItemsInView:view atTapedView:tapedView parent:nil];
+- (TTDebugExpandableListItem *)hierarchyItemsInView:(UIView *)view atTapedView:(UIView * _Nullable)tapedView {
+    TTDebugExpandableListItem *item = [self recursiveHierarchyItemsInView:view atTapedView:tapedView parent:nil];
     if ([view.nextResponder isKindOfClass:[UIViewController class]]) {
-        LiveViewHierarchyItem *viewControllerItem = [self itemForController:(UIViewController *)view.nextResponder];
+        TTDebugExpandableListItem *viewControllerItem = [self itemForController:(UIViewController *)view.nextResponder];
         viewControllerItem.childs = @[item];
         viewControllerItem.parent = item.parent;
         item.parent = viewControllerItem;
@@ -236,31 +251,32 @@ static LiveViewHierarchyItem *itemAtTapedView;
     return item;
 }
 
-- (LiveViewHierarchyItem *)recursiveHierarchyItemsInView:(UIView *)view
+- (TTDebugExpandableListItem *)recursiveHierarchyItemsInView:(UIView *)view
                                              atTapedView:(UIView * _Nullable)tapedView
-                                                  parent:(LiveViewHierarchyItem * _Nullable)parent {
-    NSString *className = NSStringFromClass(view.class);
-    LiveViewHierarchyItem *item = [[LiveViewHierarchyItem alloc] init];
+                                                  parent:(TTDebugExpandableListItem * _Nullable)parent {
+    TTDebugExpandableListItem *item = [[TTDebugExpandableListItem alloc] init];
     item.parent = parent;
-    item.view = view;
+    item.object = view;
+    
     if (view == tapedView) {
         itemAtTapedView = item;
-        LiveViewHierarchyItem *newParent = parent;
+        TTDebugExpandableListItem *newParent = parent;
         while (newParent) {
             newParent.isOpen = YES;
             newParent = newParent.parent;
         }
     }
+    
     if (view.subviews.count) {
-        NSMutableArray<LiveViewHierarchyItem *> *childs = [NSMutableArray array];
+        NSMutableArray<TTDebugExpandableListItem *> *childs = [NSMutableArray array];
         for (UIView *subview in view.subviews) {
-            LiveViewHierarchyItem *childItem = [self recursiveHierarchyItemsInView:subview atTapedView:tapedView parent:item];
+            TTDebugExpandableListItem *childItem = [self recursiveHierarchyItemsInView:subview atTapedView:tapedView parent:item];
             if ([subview.nextResponder isKindOfClass:[UIViewController class]]) {
-                LiveViewHierarchyItem *viewControllerItem = [self itemForController:(UIViewController *)subview.nextResponder];
+                TTDebugExpandableListItem *viewControllerItem = [self itemForController:(UIViewController *)subview.nextResponder];
                 viewControllerItem.parent = childItem.parent;
                 childItem.parent = viewControllerItem;
                 viewControllerItem.childs = @[childItem];
-                if ([tapedView isDescendantOfView:childItem.view]) {
+                if ([tapedView isDescendantOfView:(UIView *)childItem.object]) {
                     viewControllerItem.isOpen = YES;
                 }
                 childItem = viewControllerItem;
@@ -273,7 +289,7 @@ static LiveViewHierarchyItem *itemAtTapedView;
             item.childs = childs;
         }
     }
-    item.viewDescription = [TTDebugUtils descriptionOfObject:view];
+    item.title = [TTDebugUtils descriptionOfObject:view];
     return item;
 }
 

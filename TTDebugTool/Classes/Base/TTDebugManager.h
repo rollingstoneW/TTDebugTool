@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // 调试工具是否可用，默认YES
 @property (nonatomic, assign, getter = isEnabled) BOOL enabled;
+
 // 关闭工具时是否注销所有功能，默认NO
 @property (nonatomic, assign) BOOL unregistAllActionsWhenHidden;
 

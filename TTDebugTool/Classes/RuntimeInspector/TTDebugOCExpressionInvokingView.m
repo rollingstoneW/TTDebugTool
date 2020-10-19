@@ -37,7 +37,7 @@
     view.expressions = expressions;
     view.results = [NSMutableArray arrayWithCapacity:expressions.count];
     [view.tableView reloadData];
-    [view showInView:TTDebugWindow() animated:YES];
+    [view showInView:TTDebugRootView() animated:YES];
     
     [TTDebugRuntimeInspector invokeExpression:expression saveToHistories:YES results:^(NSError * _Nullable error, id  _Nullable result) {
         [view.results addObject:error ?: (result ?: @"nil")];
@@ -50,7 +50,6 @@
 - (void)setupDefaults {
     [super setupDefaults];
     
-    self.preferredWidth = kScreenWidth - 40;
     self.shouldCustomContentViewAutoScroll = YES;
 }
 

@@ -63,7 +63,14 @@ Pod::Spec.new do |s|
       sp.dependency 'TTDebugTool/Base'
   end
   
-  s.default_subspecs = 'ViewHierarchy', 'Log', 'RuntimeInspector'
+  s.subspec 'Sandbox' do |sp|
+      sp.source_files = 'TTDebugTool/Classes/Sandbox/**/*.{h,m,mm,c,cpp}'
+      sp.dependency 'TTDebugTool/Base'
+      sp.dependency 'FMDB'
+      sp.dependency 'SSZipArchive'
+  end
+  
+  s.default_subspecs = 'ViewHierarchy', 'Log', 'RuntimeInspector', 'Sandbox'
 
   s.frameworks = 'UIKit'
   

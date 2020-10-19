@@ -7,25 +7,48 @@
 
 #import "TTDebugLogPagesModule.h"
 #import <objc/runtime.h>
+#import <objc/message.h>
 
 static BOOL isTrackingEnabled = NO;
 static BOOL hasHooked = NO;
-static Class BaseVCClass;
+static Class _baseVCClass;
+static Class BaseVCClass() {
+    if (!_baseVCClass) {
+        NSString *baseViewControllerClassName = [TTDebugLogPagesModule sharedModule].baseViewControllerClassName;
+        if (baseViewControllerClassName.length && NSClassFromString(baseViewControllerClassName)) {
+            _baseVCClass = NSClassFromString(baseViewControllerClassName);
+        }
+        if (![_baseVCClass isKindOfClass:object_getClass([UIViewController class])]) {
+            _baseVCClass = [UIViewController class];
+        }
+    }
+    return _baseVCClass;
+}
+
+static NSString * const ViewControllerFakePath = @"TTDebug_log_vc_path";
+static void * ViewControllerObserverRemovePath = &ViewControllerObserverRemovePath;
+static NSObject *ViewControllerFakeObserver;
+static void * PreviousInvokedClassKey = &PreviousInvokedClassKey;
+
+static NSString * const PagesTrackingSwitchKey = @"pages_switch";
+static NSString * const PagesBaseVCKey = @"pages_baseVC";
+static NSString * const PagesTrackingModeKey = @"pages_trackingMode";
+static NSString * const PagesTrackingPhasesKey = @"pages_trackingPhases";
+static void * ViewControllerHasHookedKey = &ViewControllerHasHookedKey;
 
 @interface TTDebugLogPagesModule ()
 - (void)trackViewController:(UIViewController *)viewController method:(NSString *)method duration:(CFTimeInterval)duration;
 @end
 
-static NSString * const ViewControllerFakePath = @"TTDebug_log_vc_path";
-static void * ViewControllerObserverRemovePath = &ViewControllerObserverRemovePath;
-static NSObject *ViewControllerFakeObserver;
-
 @interface _TTDebugViewControllerObserverRemover : NSObject
 @property (nonatomic, assign) id target;
+@property (nonatomic, assign) BOOL hasObserver;
 @end
 @implementation _TTDebugViewControllerObserverRemover
 - (void)dealloc {
-    [self.target removeObserver:ViewControllerFakeObserver forKeyPath:ViewControllerFakePath];
+    if (ViewControllerFakeObserver && self.hasObserver) {
+        [self.target removeObserver:ViewControllerFakeObserver forKeyPath:ViewControllerFakePath];
+    }
     [[TTDebugLogPagesModule sharedModule] trackViewController:self.target method:NSStringFromSelector(_cmd) duration:0];
 }
 @end
@@ -33,9 +56,12 @@ static NSObject *ViewControllerFakeObserver;
 @implementation UIViewController (TTDebug)
 
 + (void)TTDebug_startTrack {
-    ViewControllerFakeObserver = [[NSObject alloc] init];
-    [self TTDebug_swizzleInstanceMethod:@selector(initWithCoder:) with:@selector(TTDebug_initWithCoder:)];
-    [self TTDebug_swizzleInstanceMethod:@selector(initWithNibName:bundle:) with:@selector(TTDebug_initWithNibName:bundle:)];
+    if ([TTDebugLogPagesModule sharedModule].trackingMode == TTDebugPagesTrackingByInstance) {
+        ViewControllerFakeObserver = [[NSObject alloc] init];
+    }
+    
+    [BaseVCClass() TTDebug_swizzleInstanceMethod:@selector(initWithCoder:) with:@selector(TTDebug_initWithCoder:)];
+    [BaseVCClass() TTDebug_swizzleInstanceMethod:@selector(initWithNibName:bundle:) with:@selector(TTDebug_initWithNibName:bundle:)];
 }
 
 - (instancetype)TTDebug_initWithCoder:(NSCoder *)coder {
@@ -52,66 +78,170 @@ static NSObject *ViewControllerFakeObserver;
     return [self TTDebug_initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
 }
 
-- (void)TTDebug_viewDidLoad {
-    if (!isTrackingEnabled) {
-        [self TTDebug_viewDidLoad];
-        return;
-    }
-    
-    CFTimeInterval begin = CFAbsoluteTimeGetCurrent();
-    [self TTDebug_viewDidLoad];
-    CFTimeInterval end = CFAbsoluteTimeGetCurrent();
-    
-    [[TTDebugLogPagesModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)];
+#define RecordBegin CFTimeInterval begin = 0; \
+if (isTrackingEnabled) { begin = CFAbsoluteTimeGetCurrent(); }
+
+#define RecordEnd if (isTrackingEnabled) { \
+    CFTimeInterval end = CFAbsoluteTimeGetCurrent(); \
+    [[TTDebugLogPagesModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)]; \
 }
 
-- (void)TTDebug_viewWillAppear:(BOOL)animated {
-    if (!isTrackingEnabled) {
-        [self TTDebug_viewWillAppear:animated];
-        return;
+//如果cls不是self.class，说明是内部调用的super触发的
+#define ImplementationWith(...) { \
+if ([self class] != cls) { \
+    IMP original = [self TTDebug_IMPForSel:_cmd forClass:cls original:YES]; \
+    if (original) { \
+        __VA_ARGS__ \
+    } \
+    return; \
+} \
+RecordBegin \
+IMP original = [self TTDebug_IMPForSel:_cmd forClass:cls original:YES]; \
+__VA_ARGS__ \
+RecordEnd \
+}
+static void tt_viewNoParamMethod(__unsafe_unretained UIViewController *self, SEL _cmd, Class cls) {
+    ImplementationWith(((void(*)(id, SEL))original)(self, _cmd);)
+}
+
+static void tt_viewWillOrDidMethod(__unsafe_unretained id self, SEL _cmd, BOOL animated, Class cls) {
+    ImplementationWith(((void(*)(id, SEL, BOOL))original)(self, _cmd, animated);)
+}
+#undef RecordBegin
+#undef RecordEnd
+#undef ImplementationWith
+
+- (void)TTDebug_swizzleMethodForClass:(Class)cls {
+    NSMutableArray *selectors = [NSMutableArray array];
+    TTDebugPagePhase trackingPhases = [TTDebugLogPagesModule sharedModule].trackingPhases;
+    if (trackingPhases & TTDebugPagePhaseLoadView) {
+        [selectors addObject:@"loadView"];
     }
-    
-    CFTimeInterval begin = CFAbsoluteTimeGetCurrent();
-    [self TTDebug_viewWillAppear:animated];
-    CFTimeInterval end = CFAbsoluteTimeGetCurrent();
-    
-    [[TTDebugLogPagesModule sharedModule] trackViewController:self method:NSStringFromSelector(_cmd) duration:(end - begin)];
+    if (trackingPhases & TTDebugPagePhaseViewDidLoad) {
+        [selectors addObject:@"viewDidLoad"];
+    }
+    if (trackingPhases & TTDebugPagePhaseViewDidLayoutSubviews) {
+        [selectors addObject:@"viewDidLayoutSubviews"];
+    }
+    if (trackingPhases & TTDebugPagePhaseViewWillAppear) {
+        [selectors addObject:@"viewWillAppear:"];
+    }
+    if (trackingPhases & TTDebugPagePhaseViewDidAppear) {
+        [selectors addObject:@"viewDidAppear:"];
+    }
+    if (trackingPhases & TTDebugPagePhaseViewWillDisappear) {
+        [selectors addObject:@"viewWillDisappear:"];
+    }
+    if (trackingPhases & TTDebugPagePhaseViewDidDisappear) {
+        [selectors addObject:@"viewDidDisappear:"];
+    }
+    for (NSString *selectorString in selectors) {
+        SEL selector = NSSelectorFromString(selectorString);
+        Method originalMethod = class_getInstanceMethod(cls, selector);
+//        IMP superImplementation = class_getMethodImplementation([cls superclass], selector);
+//        // 自身没有实现就不hook
+//        if (method_getImplementation(originalMethod) == superImplementation) {
+//            return;
+//        }
+        
+        SEL realNewSel = [self TTDebug_realSelectorForClass:cls selector:selector];
+        IMP implementation;
+        if (selector == @selector(viewDidLoad) || selector == @selector(viewDidLayoutSubviews)) {
+            implementation = imp_implementationWithBlock(^(__unsafe_unretained id self){
+                tt_viewNoParamMethod(self, selector, cls);
+            });
+        } else {
+            implementation = imp_implementationWithBlock(^(__unsafe_unretained id self, BOOL animated){
+                tt_viewWillOrDidMethod(self, selector, animated, cls);
+            });
+        }
+        BOOL addSucceed = class_addMethod(cls, realNewSel, implementation, method_getTypeEncoding(originalMethod));
+        if (addSucceed) {
+            Method newDebugMethod = class_getInstanceMethod(cls, realNewSel);
+            method_exchangeImplementations(originalMethod, newDebugMethod);
+            TTDebugLog(@"%@ hook %@ -> %@", cls, NSStringFromSelector(selector), NSStringFromSelector(realNewSel));
+        }
+    }
+}
+
+- (IMP)TTDebug_IMPForSel:(SEL)sel forClass:(Class)cls original:(BOOL)original {
+    if (original) {
+        Method method = class_getInstanceMethod(cls, [self TTDebug_realSelectorForClass:cls selector:sel]);
+        if (!method && !method_getImplementation(method)) {
+            method = class_getInstanceMethod(cls, sel);
+        }
+        return method_getImplementation(method);
+    } else {
+        return class_getMethodImplementation(cls, sel);
+    }
+}
+
+- (SEL)TTDebug_realSelectorForClass:(Class)cls selector:(SEL)selector {
+    return NSSelectorFromString([NSString stringWithFormat:@"%@_%@", NSStringFromClass(cls), NSStringFromSelector(selector)]);
 }
 
 - (void)TTDebug_setupTrack {
-    if (!BaseVCClass) {
-        BaseVCClass = [UIViewController class];
-        NSString *customBaseVCClassName = [TTDebugLogPagesModule sharedModule].baseViewControllerClassName;
-        if (customBaseVCClassName.length && NSClassFromString(customBaseVCClassName)) {
-            BaseVCClass = NSClassFromString(customBaseVCClassName);
-        }
-    }
-    if (objc_getAssociatedObject(self, ViewControllerObserverRemovePath) || ![self isKindOfClass:BaseVCClass]) {
+    if (![self isKindOfClass:BaseVCClass()] || self.class == BaseVCClass()) {
         return;
     }
-    _TTDebugViewControllerObserverRemover *observer = [[_TTDebugViewControllerObserverRemover alloc] init];
-    observer.target = self;
-    objc_setAssociatedObject(self, ViewControllerObserverRemovePath, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    
+    _TTDebugViewControllerObserverRemover *observer;
+    if ([TTDebugLogPagesModule sharedModule].trackingPhases & TTDebugPagePhaseViewDealloc &&
+        !objc_getAssociatedObject(self, ViewControllerObserverRemovePath)) {
+        observer = [[_TTDebugViewControllerObserverRemover alloc] init];
+        observer.target = self;
+        objc_setAssociatedObject(self, ViewControllerObserverRemovePath, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
 
+    switch ([TTDebugLogPagesModule sharedModule].trackingMode) {
+        case TTDebugPagesTrackingByInstance:
+            observer.hasObserver = YES;
+            [self TTDebug_startTrackingByInstance];
+            break;
+        case TTDebugPagesTrackingByClass:
+            [self TTDebug_startTrackingByClass];
+            break;
+        default:
+            break;
+    }
+}
+
+- (void)TTDebug_startTrackingByClass {
+    if ([objc_getAssociatedObject(self.class, ViewControllerHasHookedKey) boolValue]) {
+        return;
+    }
+    Class baseVCMetaClass = object_getClass([BaseVCClass() class]);
+    Class cls = self.class;
+    while (cls != [BaseVCClass() class] && [cls isKindOfClass:baseVCMetaClass]) {
+        if (objc_getAssociatedObject(cls, ViewControllerHasHookedKey)) {
+            return;
+        }
+        [self TTDebug_swizzleMethodForClass:cls];
+        objc_setAssociatedObject(cls, ViewControllerHasHookedKey, @1, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        cls = [cls superclass];
+    }
+}
+
+- (void)TTDebug_startTrackingByInstance {
     // 这种方式可以以控制器实例为维度进行控制
     [self addObserver:ViewControllerFakeObserver
            forKeyPath:ViewControllerFakePath
               options:NSKeyValueObservingOptionNew
               context:nil];
     Class kvoClass = object_getClass(self);
-
-    static void * ViewControllerHasHookedKey = &ViewControllerHasHookedKey;
+    
     if (objc_getAssociatedObject(kvoClass, ViewControllerHasHookedKey)) {
         return;
     }
-    [kvoClass TTDebug_swizzleInstanceMethod:@selector(viewDidLoad) with:@selector(TTDebug_viewDidLoad)];
-    [kvoClass TTDebug_swizzleInstanceMethod:@selector(viewWillAppear:) with:@selector(TTDebug_viewWillAppear:)];
+    [self TTDebug_swizzleMethodForClass:kvoClass];
     objc_setAssociatedObject(kvoClass, ViewControllerHasHookedKey, @1, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 @end
 
-static NSString * const SystemTrackingSwitchKey = @"system_switch";
+@interface TTDebugLogPagesModule ()
+@property (nonatomic, strong) NSMutableArray *observers;
+@end
 
 @implementation TTDebugLogPagesModule
 
@@ -134,7 +264,7 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
 }
 
 - (void)didRegist {
-    if ([TTDebugUserDefaults() boolForKey:SystemTrackingSwitchKey]) {
+    if ([TTDebugUserDefaults() boolForKey:PagesTrackingSwitchKey]) {
         self.enabled = YES;
     }
 }
@@ -145,10 +275,34 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
 
 - (void)setEnabled:(BOOL)enabled {
     _enabled = enabled;
-    [TTDebugUserDefaults() setBool:enabled forKey:SystemTrackingSwitchKey];
+    [TTDebugUserDefaults() setBool:enabled forKey:PagesTrackingSwitchKey];
     [TTDebugUserDefaults() synchronize];
     if (enabled) {
-        [self startTracking];
+        if (self.trackingMode == TTDebugPagesNotTracking) {
+            NSNumber *savedValue = [TTDebugUserDefaults() objectForKey:PagesTrackingModeKey];
+            if (savedValue) {
+                self.trackingMode = [savedValue integerValue];
+            } else {
+                self.trackingMode = TTDebugPagesTrackingByInstance;
+            }
+        }
+        if (!self.baseViewControllerClassName) {
+            self.baseViewControllerClassName = [TTDebugUserDefaults() stringForKey:PagesBaseVCKey];
+            if (!self.baseViewControllerClassName) {
+                self.baseViewControllerClassName = @"UIViewController";
+            }
+        }
+        if (self.trackingPhases == 0) {
+            NSNumber *savedValue = [TTDebugUserDefaults() objectForKey:PagesTrackingPhasesKey];
+            if (savedValue) {
+                self.trackingPhases = [savedValue integerValue];
+            } else {
+                self.trackingPhases = TTDebugPagePhaseViewDidLoad | TTDebugPagePhaseViewWillAppear | TTDebugPagePhaseViewDidAppear | TTDebugPagePhaseViewDealloc;
+            }
+        }
+        if (self.trackingMode != TTDebugPagesNotTracking) {
+            [self startTracking];
+        }
     } else {
         [self stopTracking];
     }
@@ -177,13 +331,17 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
     isTrackingEnabled = YES;
     if (!hasHooked) {
         [UIViewController TTDebug_startTrack];
-        [self startTrackApplicationEvents];
         hasHooked = YES;
     }
+    [self startTrackApplicationEvents];
 }
 
 - (void)stopTracking {
     isTrackingEnabled = NO;
+    [self.observers enumerateObjectsUsingBlock:^(id observer, NSUInteger idx, BOOL * _Nonnull stop) {
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+    }];
+    self.observers = nil;
 }
 
 - (void)trackViewController:(UIViewController *)viewController method:(NSString *)method duration:(CFTimeInterval)duration {
@@ -194,7 +352,7 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
     if ([method isEqualToString:@"dealloc"]) {
         item.customTitleColor = UIColor.colorStyle5;
         if (self.showViewControllerDeallocedToast) {
-            [TTDebugUtils showToastAtTopRight:[NSString stringWithFormat:@"dealloced: %@", vcDescrption]];
+            [TTDebugUtils showToastAtTopRight:[NSString stringWithFormat:@"dealloced: %@", vcDescrption]].userInteractionEnabled = NO;
         }
     } else {
         item.customTitleColor = UIColor.colorStyle2;
@@ -246,7 +404,7 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
     [needObservedNotifications enumerateObjectsUsingBlock:^(NSDictionary * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         NSString *name = obj[@"name"];
         NSString *description = obj[@"desc"];
-        [[NSNotificationCenter defaultCenter] addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
+        [self.observers addObject:[[NSNotificationCenter defaultCenter] addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
             if (!isTrackingEnabled) {
                 return;
             }
@@ -292,7 +450,7 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
                 }
                 [self.delegate logModule:self didTrackLog:item];
             }
-        }];
+        }]];
     }];
 }
 
@@ -310,7 +468,28 @@ static NSString * const SystemTrackingSwitchKey = @"system_switch";
 
 - (void)setBaseViewControllerClassName:(NSString *)baseViewControllerClassName {
     _baseViewControllerClassName = baseViewControllerClassName;
-    BaseVCClass = nil;
+    _baseVCClass = nil;
+    [TTDebugUserDefaults() setObject:baseViewControllerClassName forKey:PagesBaseVCKey];
+    [TTDebugUserDefaults() synchronize];
+}
+
+- (void)setTrackingMode:(TTDebugPagesTrackingMode)trackingMode {
+    _trackingMode = trackingMode;
+    [TTDebugUserDefaults() setInteger:trackingMode forKey:PagesTrackingModeKey];
+    [TTDebugUserDefaults() synchronize];
+}
+
+- (void)setTrackingPhases:(TTDebugPagePhase)trackingPhases {
+    _trackingPhases = trackingPhases;
+    [TTDebugUserDefaults() setInteger:trackingPhases forKey:PagesTrackingPhasesKey];
+    [TTDebugUserDefaults() synchronize];
+}
+
+- (NSMutableArray *)observers {
+    if (!_observers) {
+        _observers = [NSMutableArray array];
+    }
+    return _observers;
 }
 
 @end

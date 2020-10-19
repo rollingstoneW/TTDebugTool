@@ -278,7 +278,7 @@ typedef NS_ENUM(NSUInteger, TTDebugViewInfoCellStyle) {
         return nil;
     }
     TTDebugRuntimeInspectorView *alert = [[TTDebugRuntimeInspectorView alloc] initWithObject:object info:info canRemove:canRemove];
-    [alert showInView:TTDebugWindow() animated:YES];
+    [alert showInView:TTDebugRootView() animated:YES];
     return alert;
 }
 
@@ -311,7 +311,6 @@ typedef NS_ENUM(NSUInteger, TTDebugViewInfoCellStyle) {
     [super setupDefaults];
     
     self.shouldCustomContentViewAutoScroll = NO;
-    self.preferredWidth = kScreenWidth - 40;
     self.tapDimToDismiss = YES;
     self.followingKeyboardPosition = TNAlertFollowingKeyboardAtActiveInputBottom;
 }
@@ -700,6 +699,10 @@ typedef NS_ENUM(NSUInteger, TTDebugViewInfoCellStyle) {
         } else if (controller.presentingViewController) {
             [controller dismissViewControllerAnimated:YES completion:nil];
         }
+    }
+    if (!self.belowObjects) {
+        [self dismiss];
+        return;
     }
     [self goback];
 }

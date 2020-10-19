@@ -12,5 +12,7 @@ static NSNotificationName const TTDebugInvokeH5ActionNotificationName = @"TTDebu
 static NSNotificationName const TTDebugShowH5ActionNotificationName = @"TTDebugShowH5ActionNotificationName";
 static NSNotificationName const TTDebugShowSignoNotificationName = @"TTDebugShowSignoNotificationName";
 static NSNotificationName const TTDebugDidAddViewOnWindowNotificationName = @"TTDebugDidAddViewOnWindowNotificationName";
+static NSNotificationName const TTDebugViewControllerDidDismissNotification = @"TTDebugViewControllerDidDismissNotification";
+
 
 #endif /* TTDebugInternalNotification_h */

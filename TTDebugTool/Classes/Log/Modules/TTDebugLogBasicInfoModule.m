@@ -42,27 +42,6 @@
 
 - (void)refresh {
     TTDebugAsync(^{
-        if (NSClassFromString(@"LoginManager")) {
-            Class LoginManagerClass = NSClassFromString(@"LoginManager");
-            id loginManager = [LoginManagerClass TTDebug_performSelectorWithArgs:@selector(sharedInstance)];
-            id userEntity = [loginManager TTDebug_performSelectorWithArgs:@selector(currentUserEntity)];
-            id uid = [userEntity TTDebug_performSelectorWithArgs:@selector(uid)];
-            if (uid && [uid integerValue]) {
-                [self insertInfoWithKey:@"UID" value:[NSString stringWithFormat:@"%@", uid]];
-            }
-        }
-        if (NSClassFromString(@"APPInfoManager")) {
-            id infoManager = [NSClassFromString(@"APPInfoManager") TTDebug_performSelectorWithArgs:@selector(sharedInstance)];
-            NSString *cuid = [infoManager TTDebug_performSelectorWithArgs:@selector(cuid)];
-            if (cuid) {
-                [self insertInfoWithKey:@"CUID" value:cuid];
-            }
-            [self insertInfoWithKey:@"Token" value:[infoManager TTDebug_performSelectorWithArgs:@selector(deviceToken)]];
-            [self insertInfoWithKey:@"VC" value:[infoManager TTDebug_performSelectorWithArgs:@selector(vc)]];
-            [self insertInfoWithKey:@"YKVC" value:[infoManager TTDebug_performSelectorWithArgs:@selector(yikeVC)]];
-            [self insertInfoWithKey:@"LiveVC" value:[infoManager TTDebug_performSelectorWithArgs:@selector(liveVC)]];
-        }
-
         NSDictionary *bundleInfo = [[NSBundle mainBundle] infoDictionary];
         [self insertInfoWithKey:@"版本" value:bundleInfo[@"CFBundleShortVersionString"]];
         [self insertInfoWithKey:@"BundleId" value:bundleInfo[(__bridge NSString *)kCFBundleIdentifierKey]];
@@ -90,12 +69,7 @@
 }
 
 - (NSString *)sizeStringFromByte:(UInt64)byte {
-    NSInteger MBs = byte / (1024 * 1024);
-    CGFloat GBs = MBs / 1024.0;
-    if (GBs > 0) {
-        return [NSString stringWithFormat:@"%zdMB(%.2fGB)", MBs, GBs];
-    }
-    return [NSString stringWithFormat:@"%zdMB", MBs];
+    return [TTDebugUtils sizeStringFromByte:byte];
 }
 
 - (void)insertInfoWithKey:(NSString *)key value:(NSString *)value {

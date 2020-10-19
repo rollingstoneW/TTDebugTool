@@ -10,7 +10,7 @@
 #import "TTDebugThread.h"
 #import "TTDebugLogDebugModule.h"
 
-@class TTAlertView, TTDebugUtils;
+@class TNAlertView, TTDebugUtils;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -37,19 +37,22 @@ _Pragma("clang diagnostic pop") \
 
 FOUNDATION_EXTERN NSString *const TTDebugErrorDomain;
 FOUNDATION_EXTERN UIWindow * TTDebugWindow(void);
+FOUNDATION_EXTERN UIView * TTDebugRootView(void);
 
 @interface TTDebugUtils : NSObject
 
 + (NSString *)timestampWithInterval:(NSTimeInterval * _Nullable)interval;
 
 + (UIWindow *)mainWindow;
-+ (void)showToastAtTopRight:(NSString *)toast;
-+ (void)showToast:(NSString *)toast;
-+ (TTAlertView *)showAlertWithTitle:(NSString *)title
++ (UIView * _Nullable)showToastAtTopRight:(NSString *)toast;
++ (UIView * _Nullable)showToast:(NSString *)toast;
++ (UIView * _Nullable)showToast:(NSString *)toast autoHidden:(BOOL)autoHidden;
++ (void)hideToast;
++ (TNAlertView *)showAlertWithTitle:(NSString *)title
                               message:(NSString *)message
                          invokeButton:(NSString *)invoke
                               invoked:(dispatch_block_t)invoked;
-+ (TTAlertView *)showAlertWithTitle:(NSString *)title
++ (TNAlertView *)showAlertWithTitle:(NSString *)title
                               message:(NSString *)message
                         invokeButtons:(NSArray<NSString *> *)invokes
                               invoked:(void(^)(NSInteger index))invoked;
@@ -57,12 +60,15 @@ FOUNDATION_EXTERN UIWindow * TTDebugWindow(void);
 + (NSString *)trimString:(NSString *)string;
 + (id _Nullable)jsonValueFromString:(NSString *)string;
 + (NSString * _Nullable)jsonStrigFromValue:(id)value;
++ (NSString * _Nullable)prettyJsonStrigFromValue:(id)value;
 + (NSString *)URLEncodeString:(NSString *)string;
 + (NSString *)URLDecodeString:(NSString *)string;
 + (NSString *)prettyLogedStringToJsonString:(NSString *)string needTrimming:(BOOL)needTrimming;
 
 + (UIViewController *)currentViewController;
++ (UIViewController *)currentViewControllerNotInDebug:(BOOL)notInDebug;
 + (UIViewController * _Nullable)viewControllerOfView:(UIView *)view;
++ (UIViewController *)viewControllerBelow:(UIViewController *)viewController;
 
 + (UIImage * _Nullable)imageNamed:(NSString *)imageName;
 + (UIImage *)imageWithColor:(UIColor *)color size:(CGSize)size;
@@ -70,6 +76,9 @@ FOUNDATION_EXTERN UIWindow * TTDebugWindow(void);
 + (NSString *)descriptionOfObject:(id)object;
 + (BOOL)canRemoveObjectFromViewHierarchy:(id)object;
 + (NSString *)hierarchyDescriptionOfView:(UIView *)view;
+
++ (NSString *)sizeStringFromByte:(UInt64)byte;
++ (void)presentViewController:(UIViewController *)viewController;
 
 @end
 
@@ -106,6 +115,9 @@ FOUNDATION_EXTERN NSUserDefaults *TTDebugUserDefaults(void);
 - (id _Nullable)TTDebug_associateWeakObjectForKey:(void *)key;
 
 - (id _Nullable)TTDebug_performSelectorWithArgs:(SEL)sel, ...;
+- (id _Nullable)TTDebug_performSelectorWithArgsIfRecognized:(SEL)sel, ...;
+
+- (void)TTDebug_scheduleDeallocedBlock:(void (^)(id _Nonnull))block;
 
 @end
 
@@ -157,6 +169,7 @@ FOUNDATION_EXTERN NSUserDefaults *TTDebugUserDefaults(void);
 @property (nonatomic) CGSize  size;        ///< Shortcut for frame.size.
 
 - (void)TTDebug_setLayerBorder:(CGFloat)width color:(UIColor *)color cornerRadius:(CGFloat)cornerRadius;
+- (void)TTDebug_setLayerBorder:(CGFloat)width color:(UIColor *)color cornerRadius:(CGFloat)cornerRadius masksToBounds:(BOOL)masksToBounds;
 
 - (void)TTDebug_setContentHorizentalResistancePriority:(UILayoutPriority)priority;
 
@@ -198,7 +211,5 @@ FOUNDATION_EXTERN NSUserDefaults *TTDebugUserDefaults(void);
 + (UIButton *)buttonWithImage:(UIImage *)image target:(id)target selector:(SEL)selector;
 
 @end
-
-
 
 NS_ASSUME_NONNULL_END

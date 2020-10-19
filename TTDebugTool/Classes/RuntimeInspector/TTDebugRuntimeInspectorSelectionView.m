@@ -30,7 +30,7 @@
     view.favorites = favorites.mutableCopy;
     view.histories = histories.mutableCopy;
     [view.collectionView setFavoriteItems:view.favorites historiesItems:view.histories];
-    [view showInView:[TTDebugUtils mainWindow] animated:YES];
+    [view showInView:TTDebugRootView() animated:YES];
     [view.collectionView reloadData];
     return view;
 }
@@ -42,7 +42,6 @@
 - (void)setupDefaults {
     [super setupDefaults];
     
-    self.preferredWidth = kScreenWidth - 40;
     self.shouldCustomContentViewAutoScroll = YES;
     
     __weak __typeof(self) weakSelf = self;

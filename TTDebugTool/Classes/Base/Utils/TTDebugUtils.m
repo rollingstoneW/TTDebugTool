@@ -11,14 +11,61 @@
 #import "TTDebugAlertView.h"
 #import "TTDebugToastView.h"
 #import "TTFloatCircledDebugView.h"
+#import "TTDebugPreviewBaseViewController.h"
+#import "TTDebugInternalNotification.h"
 @import WebKit;
+
+@interface _TTDebugDeallocObserver : NSObject
+@property (nonatomic, assign) id object;
+@property (nonatomic, strong) void(^block)(id);
+@property (nonatomic, strong) NSMutableSet *blocks;
+@end
+@implementation _TTDebugDeallocObserver
++ (void)observeDeallocOfObject:(id)object block:(void(^)(id))block {
+    if (!object || !block) { return; }
+    static void *TTDeallocObserverAssociationKey = &TTDeallocObserverAssociationKey;
+    _TTDebugDeallocObserver *observer = objc_getAssociatedObject(object, TTDeallocObserverAssociationKey);
+    if (!observer) {
+        observer = [[_TTDebugDeallocObserver alloc] init];
+        observer.object = object;
+        objc_setAssociatedObject(object, TTDeallocObserverAssociationKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (observer.blocks) {
+        [observer.blocks addObject:block];
+    } else {
+        if (observer.block) {
+            observer.blocks = [NSMutableSet set];
+            [observer.blocks addObject:observer.block];
+            [observer.blocks addObject:block];
+            observer.block = nil;
+        } else {
+            observer.block = block;
+        }
+    }
+}
+- (void)dealloc {
+    [self.blocks enumerateObjectsUsingBlock:^(void(^block)(id), BOOL * _Nonnull stop) {
+        block(self.object);
+    }];
+    !_block ?: _block(self.object);
+    self.blocks = nil;
+    self.block = nil;
+}
+@end
 
 NSString *const TTDebugErrorDomain = @"TTDebugError";
 
-UIWindow * TTDebugWindow() {
-//    return [TTDebugUtils mainWindow];
+UIWindow * TTDebugRootView(void) {
     if (@available(iOS 13.0, *)) {
-        return [TTFloatCircledDebugView debugWindow];
+        return [TTFloatCircledDebugWindow debugWindow].rootViewController.view ?: [TTFloatCircledDebugWindow debugWindow];
+    } else {
+        return [TTDebugUtils mainWindow];
+    }
+}
+
+UIWindow * TTDebugWindow(void) {
+    if (@available(iOS 13.0, *)) {
+        return [TTFloatCircledDebugWindow debugWindow];
     } else {
         return [TTDebugUtils mainWindow];
     }
@@ -28,7 +75,7 @@ NSUserDefaults *TTDebugUserDefaults(void) {
     static NSUserDefaults *defaults;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        defaults = [[NSUserDefaults alloc] initWithSuiteName:@"live_debug"];
+        defaults = [[NSUserDefaults alloc] initWithSuiteName:@"tt_debug"];
     });
     return defaults;
 }
@@ -89,6 +136,10 @@ NSUserDefaults *TTDebugUserDefaults(void) {
 
 }
 
+- (void)TTDebug_scheduleDeallocedBlock:(void (^)(id _Nonnull))block {
+    [_TTDebugDeallocObserver observeDeallocOfObject:self block:block];
+}
+
 - (id _Nullable)TTDebug_associateWeakObjectForKey:(void *)key {
     if (!key) {
         return nil;
@@ -105,6 +156,21 @@ NSUserDefaults *TTDebugUserDefaults(void) {
     if (!sig) { [self doesNotRecognizeSelector:sel]; return nil; }
     NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
     if (!inv) { [self doesNotRecognizeSelector:sel]; return nil; }
+    [inv setTarget:self];
+    [inv setSelector:sel];
+    va_list args;
+    va_start(args, sel);
+    [NSObject TTDebug_setInv:inv withSig:sig andArgs:args];
+    va_end(args);
+    [inv invoke];
+    return [NSObject TTDebug_getReturnFromInv:inv withSig:sig];
+}
+
+- (id)TTDebug_performSelectorWithArgsIfRecognized:(SEL)sel, ... {
+    NSMethodSignature * sig = [self methodSignatureForSelector:sel];
+    if (!sig) { return nil; }
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    if (!inv) {  return nil; }
     [inv setTarget:self];
     [inv setSelector:sel];
     va_list args;
@@ -438,33 +504,41 @@ return @(ret); \
     return [[UIApplication sharedApplication].delegate window];
 }
 
-+ (void)showToastAtTopRight:(NSString *)toast {
-    [TTDebugWindow() TTDebug_showToast:toast position:TTDebugToastPositionTopRight];
++ (TTDebugToastView * _Nullable)showToastAtTopRight:(NSString *)toast {
+    return [TTDebugWindow() TTDebug_showToast:toast position:TTDebugToastPositionTopRight autoHidden:YES];
 }
 
-+ (void)showToast:(NSString *)toast {
-    [TTDebugWindow() TTDebug_showToast:toast position:TTDebugToastPositionCenter];
++ (UIView * _Nullable)showToast:(NSString *)toast {
+    return [self showToast:toast autoHidden:YES];
 }
 
-+ (TNAlertView *)showAlertWithTitle:(NSString *)title message:(nonnull NSString *)message invokeButton:(nonnull NSString *)invoke invoked:(nonnull dispatch_block_t)invoked {
++ (UIView * _Nullable)showToast:(NSString *)toast autoHidden:(BOOL)autoHidden {
+    return [TTDebugWindow() TTDebug_showToast:toast position:TTDebugToastPositionCenter autoHidden:autoHidden];
+}
+
++ (void)hideToast {
+    [TTDebugWindow() hideToast];
+}
+
++ (TTDebugAlertView *)showAlertWithTitle:(NSString *)title message:(nonnull NSString *)message invokeButton:(nonnull NSString *)invoke invoked:(nonnull dispatch_block_t)invoked {
     TTDebugAlertView *alert = [[TTDebugAlertView alloc] initWithTitle:title message:message cancelTitle:@"确定" confirmTitle:invoke];
     alert.preferredWidth = kScreenWidth - 40;
-    alert.actionHandler = ^(__kindof TNAlertButton * _Nonnull action, NSInteger index) {
+    alert.actionHandler = ^(__kindof TTDebugAlertButton * _Nonnull action, NSInteger index) {
         if (index == 1) {
             !invoked ?: invoked();
         }
     };
-    [alert showInView:TTDebugWindow() animated:YES];
+    [alert showInView:TTDebugRootView() animated:YES];
     alert.tapDimToDismiss = YES;
     return alert;
 }
 
-+ (TNAlertView *)showAlertWithTitle:(NSString *)title message:(NSString *)message invokeButtons:(nonnull NSArray<NSString *> *)invokes invoked:(nonnull void (^)(NSInteger))invoked {
++ (TTDebugAlertView *)showAlertWithTitle:(NSString *)title message:(NSString *)message invokeButtons:(nonnull NSArray<NSString *> *)invokes invoked:(nonnull void (^)(NSInteger))invoked {
     NSMutableArray *buttons = [NSMutableArray array];
     [invokes enumerateObjectsUsingBlock:^(NSString * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        [buttons addObject:[TNAlertButton buttonWithTitle:obj style:TNAlertActionStyleDefault handler:nil]];
+        [buttons addObject:[TTDebugAlertButton buttonWithTitle:obj style:TNAlertActionStyleCancel handler:nil]];
     }];
-    [buttons addObject:[TNAlertButton buttonWithTitle:@"确定" style:TNAlertActionStyleCancel handler:nil]];
+    [buttons addObject:[TTDebugAlertButton buttonWithTitle:@"确定" style:TNAlertActionStyleCancel handler:nil]];
     TTDebugAlertView *alert = [[TTDebugAlertView alloc] initWithTitle:title message:message buttons:buttons];
     alert.preferredWidth = kScreenWidth - 40;
     alert.actionHandler = ^(__kindof TNAlertButton * _Nonnull action, NSInteger index) {
@@ -472,7 +546,7 @@ return @(ret); \
             !invoked ?: invoked(index);
         }
     };
-    [alert showInView:TTDebugWindow() animated:YES];
+    [alert showInView:TTDebugRootView() animated:YES];
     alert.tapDimToDismiss = YES;
     return alert;
 }
@@ -500,6 +574,17 @@ return @(ret); \
         NSError *error;
         NSData *jsonData = [NSJSONSerialization dataWithJSONObject:value options:0 error:&error];
         NSString *json = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+        return json;
+    }
+    return nil;
+}
+
++ (NSString *)prettyJsonStrigFromValue:(id)value {
+    if ([NSJSONSerialization isValidJSONObject:value]) {
+        NSError *error;
+        NSData *jsonData = [NSJSONSerialization dataWithJSONObject:value options:0 error:&error];
+        NSString *json = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+        json = [json stringByReplacingOccurrencesOfString:@"\\/" withString:@"/"];
         return json;
     }
     return nil;
@@ -685,13 +770,60 @@ return @(ret); \
 }
 
 + (UIViewController *)currentViewController {
-    UIViewController* viewController = [UIApplication sharedApplication].keyWindow.rootViewController;
-    UIViewController *current = [self findBestViewController:viewController];
-    if (!current && [UIApplication sharedApplication].keyWindow != [[UIApplication sharedApplication].delegate window]) {
-        viewController = [[UIApplication sharedApplication].delegate window].rootViewController;
-        current = [self findBestViewController:viewController];
+    return [self currentViewControllerNotInDebug:NO];
+}
+
++ (UIViewController *)currentViewControllerNotInDebug:(BOOL)notInDebug {
+    UIViewController *current = nil;
+    
+    NSMutableArray *pendingWindows = [NSMutableArray array];
+    if (!notInDebug) {
+        UIWindow *debugWindow = TTDebugWindow();
+        [pendingWindows addObject:debugWindow];
+    }
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    if (keyWindow && ![pendingWindows containsObject:keyWindow]) {
+        [pendingWindows addObject:keyWindow];
+    }
+    UIWindow *mainWindow = [[UIApplication sharedApplication].delegate window];
+    if (mainWindow && ![pendingWindows containsObject:mainWindow]) {
+        [pendingWindows addObject:mainWindow];
+    }
+    for (UIWindow *window in pendingWindows) {
+        current = [self findBestViewController:window.rootViewController];
+        if (current) {
+            break;
+        }
+    }
+    if (notInDebug) {
+        for (Class debugClass in [self debugVCClasses]) {
+            if ([current isKindOfClass:debugClass]) {
+                current = [self viewControllerBelow:current];
+                break;
+            }
+        }
     }
     return current;
+    
+}
+
++ (UIViewController *)viewControllerBelow:(UIViewController *)viewController {
+    if (viewController.navigationController.viewControllers.count > 1) {
+        NSInteger index = [viewController.navigationController.viewControllers indexOfObject:viewController];
+        if (index != NSNotFound && index > 0) {
+            return viewController.navigationController.viewControllers[index - 1];
+        }
+    }
+    return viewController.parentViewController ?: viewController.presentingViewController;
+}
+
++ (NSArray *)debugVCClasses {
+    static NSArray *debugClasses;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        debugClasses = @[[TTDebugPreviewBaseViewController class], NSClassFromString(@"TTDebugViewController")];
+    });
+    return debugClasses;
 }
 
 + (UIViewController*)findBestViewController:(UIViewController*)vc {
@@ -775,9 +907,6 @@ return @(ret); \
                     [description appendFormat:@"; placeholder = %@", placeholder];
                 }
             }
-        } else if ([view isKindOfClass:[UIWebView class]]) {
-            NSString *urlString = ((UIWebView *)view).request.URL.absoluteString;
-            [description appendFormat:@"; url = %@", urlString];
         } else if ([view isKindOfClass:[WKWebView class]]) {
             NSString *urlString = ((WKWebView *)view).URL.absoluteString;
             [description appendFormat:@"; url = %@", urlString];
@@ -803,6 +932,86 @@ return @(ret); \
         }
     }
     return NO;
+}
+
++ (NSString *)sizeStringFromByte:(UInt64)byte {
+    return [NSByteCountFormatter stringFromByteCount:byte countStyle:NSByteCountFormatterCountStyleBinary];
+}
+
++ (void)presentViewController:(UIViewController *)viewController {
+    dispatch_block_t block = ^{
+        UIViewController *currentVC = [TTDebugUtils currentViewController];
+        if (TTDebugWindow() == [self mainWindow]) {
+            NSArray *popupViews = [[TNAbstractPopupView customPopupManager] popupViewsInView:currentVC.view.window containToShow:YES];
+            for (UIView *view in popupViews) {
+                view.hidden = YES;
+            }
+        }
+        [self observerVCDismissIfNeeded:viewController];
+        [currentVC presentViewController:viewController animated:YES completion:nil];
+    };
+    if ([TTDebugWindow() respondsToSelector:@selector(addRootViewControllerIfNeeded:)]) {
+        [TTDebugWindow() performSelector:@selector(addRootViewControllerIfNeeded:) withObject:block];
+    } else {
+        block();
+    }
+}
+
++ (void)observerVCDismissIfNeeded:(UIViewController *)vc {
+    if ([vc isKindOfClass:[UINavigationController class]]) {
+        vc = [(UINavigationController *)vc viewControllers].firstObject;
+    }
+    if ([vc isKindOfClass:[TTDebugPreviewBaseViewController class]]) {
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(removeDebugRootViewController) name:TTDebugViewControllerDidDismissNotification object:nil];
+        return;
+    }
+    static NSObject *observer;
+    static NSString *observedPath = @"livedebug_fake_path";
+    if (!observer) {
+        observer = [NSObject new];
+    }
+    [vc addObserver:observer forKeyPath:observedPath options:NSKeyValueObservingOptionNew context:nil];
+    static void * hasHookedKey = &hasHookedKey;
+    Class kvoClass = object_getClass(vc);
+    __weak __typeof(vc) weakSelf = vc;
+    if (![objc_getAssociatedObject(kvoClass, hasHookedKey) boolValue]) {
+        Method original = class_getInstanceMethod(kvoClass, @selector(viewDidDisappear:));
+        IMP originalIMP = method_getImplementation(original);
+        SEL newSelector = @selector(TTDebug_viewDidDisappear:);
+        class_addMethod(kvoClass, newSelector, imp_implementationWithBlock(^(__unsafe_unretained UIViewController *vc, BOOL animated){
+            ((void(*)(id, SEL, BOOL))originalIMP)(vc, @selector(viewDidDisappear:), animated);
+            if (weakSelf != vc) {
+                return;
+            }
+            if (vc.movingFromParentViewController ||
+                vc.beingDismissed ||
+                vc.navigationController.beingDismissed) {
+                [[NSNotificationCenter defaultCenter] postNotificationName:TTDebugViewControllerDidDismissNotification object:vc];
+                [self showAllHiddenPopupViews];
+                [self removeDebugRootViewController];
+            }
+            
+        }), method_getTypeEncoding(original));
+        Method newMethod = class_getInstanceMethod(kvoClass, newSelector);
+        method_exchangeImplementations(original, newMethod);
+        objc_setAssociatedObject(kvoClass, hasHookedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    [vc TTDebug_scheduleDeallocedBlock:^(id _Nonnull vc) {
+        [vc removeObserver:observer forKeyPath:observedPath];
+    }];
+}
+
++ (void)showAllHiddenPopupViews {
+    NSArray *popupViews = [[TNAbstractPopupView customPopupManager] popupViewsInView:TTDebugWindow() containToShow:YES];
+    for (UIView *view in popupViews) {
+        view.hidden = NO;
+    }
+}
+
++ (void)removeDebugRootViewController {
+    if ([TTDebugWindow() respondsToSelector:@selector(removeRootViewControllerIfNeeded)]) {
+        [TTDebugWindow() performSelector:@selector(removeRootViewControllerIfNeeded)];
+    }
 }
 
 @end
@@ -861,8 +1070,7 @@ return @(ret); \
     return [UIColor TTDebug_colorWithHex:0xcc0000];
 }
 
-+ (UIColor *)TTDebug_colorWithHex:(UInt32)hex andAlpha:(CGFloat)alpha
-{
++ (UIColor *)TTDebug_colorWithHex:(UInt32)hex andAlpha:(CGFloat)alpha {
     int r = (hex >> 16) & 0xFF;
     int g = (hex >> 8) & 0xFF;
     int b = (hex) & 0xFF;
@@ -873,8 +1081,7 @@ return @(ret); \
                            alpha:alpha];
 }
 
-+ (UIColor *)TTDebug_colorWithARGBHex:(uint) hex
-{
++ (UIColor *)TTDebug_colorWithARGBHex:(uint)hex {
     int red, green, blue, alpha;
     
     blue = hex & 0x000000FF;
@@ -888,8 +1095,7 @@ return @(ret); \
                            alpha:alpha/255.f];
 }
 
-+ (UIColor *)TTDebug_colorWithHex:(UInt32)hex
-{
++ (UIColor *)TTDebug_colorWithHex:(UInt32)hex {
     if (hex > 0xffffff) {
         return [UIColor TTDebug_colorWithARGBHex:hex];
     }

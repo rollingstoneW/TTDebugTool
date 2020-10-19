@@ -11,6 +11,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@interface TTFloatCircledDebugWindow : UIWindow
+
++ (TTFloatCircledDebugWindow *)debugWindow;
++ (void)create;
++ (void)destory;
+- (void)addRootViewControllerIfNeeded:(dispatch_block_t)block;
+- (void)removeRootViewControllerIfNeeded;
+
+@end
+
 @interface TTFloatCircledDebugView : UIView
 
 @property (nonatomic,   copy) id normalTitle;
@@ -24,7 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL expanded;
 @property (nonatomic, assign) BOOL tapOutsideToDismiss;
 
-@property (class, nullable, nonatomic, strong, readonly) UIWindow *debugWindow;
+@property (nonatomic, strong) BOOL(^shouldLongPressDismiss)(void);
 
 - (instancetype)initWithTitleForNormal:(id)normal
                               expanded:(id)expanded
@@ -33,8 +43,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)show;
 - (void)showAddedInView:(UIView *)view animated:(BOOL)animated;
 - (void)dismissAnimated:(BOOL)animated;
-
-- (void)showAddedInMainWindow;
 
 - (void)setExpanded:(BOOL)expanded animated:(BOOL)animated;
 

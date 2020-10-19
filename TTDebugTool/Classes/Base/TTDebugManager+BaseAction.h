@@ -12,7 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface TTDebugManager (BaseAction)
 
-+ (NSArray<TTDebugAction *> *)baseActions;
++ (NSArray<TTDebugActionGroup *> *)baseGroups;
 
 @end
 

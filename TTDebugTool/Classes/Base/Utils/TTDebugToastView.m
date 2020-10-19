@@ -47,22 +47,35 @@ static void * TTDebugToastAssociateKey = &TTDebugToastAssociateKey;
     self.label.text = toast;
     
     [[self class] cancelPreviousPerformRequestsWithTarget:self selector:@selector(removeFromSuperview) object:nil];
-    [self performSelector:@selector(removeFromSuperview) withObject:nil afterDelay:1.5];
+}
+
+- (void)hidesAfterDelay:(NSTimeInterval)delay {
+    if (delay == 0) {
+        [self removeFromSuperview];
+    } else {
+        [self performSelector:@selector(removeFromSuperview) withObject:nil afterDelay:delay];
+    }
 }
 
 @end
 
 @implementation UIView (TTDebugToast)
 
-- (void)TTDebug_showToast:(NSString *)toast position:(TTDebugToastPosition)position {
-    if (!toast.length) return;
+- (TTDebugToastView *)TTDebug_showToast:(NSString *)toast position:(TTDebugToastPosition)position autoHidden:(BOOL)autoHidden {
+    if (!toast.length) return nil;
     
     TTDebugToastView *toastView = [self TTDebug_associateWeakObjectForKey:TTDebugToastAssociateKey];
     if (toastView) {
         [toastView showToast:toast];
+        if (autoHidden) {
+            [toastView hidesAfterDelay:1.5];
+        }
     } else {
         toastView = [[TTDebugToastView alloc] initWithToast:toast];
         [self addSubview:toastView];
+        if (autoHidden) {
+            [toastView hidesAfterDelay:1.5];
+        }
         [self TTDebug_setAssociateWeakObject:toastView forKey:TTDebugToastAssociateKey];
     }
     if (position == TTDebugToastPositionCenter) {
@@ -77,6 +90,15 @@ static void * TTDebugToastAssociateKey = &TTDebugToastAssociateKey;
             make.width.lessThanOrEqualTo(self).multipliedBy(0.7);
         }];
     }
+    return toastView;
+}
+
+- (void)hideToast {
+    [self.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        if ([obj isKindOfClass:[TTDebugToastView class]]) {
+            [(TTDebugToastView *)obj hidesAfterDelay:0];
+        }
+    }];
 }
 
 @end

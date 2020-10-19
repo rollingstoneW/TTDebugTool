@@ -9,6 +9,7 @@
 #import "TTFloatCircledDebugView.h"
 #import "TTDebugUtils.h"
 #import "TTDebugWeakProxy.h"
+#import "TTDebugInternalNotification.h"
 
 static CGFloat const TTFloatCircledWidth = 60;
 
@@ -146,10 +147,38 @@ static CGFloat const TTFloatCircledWidth = 60;
 
 @end
 
-@interface TTFloatCircledDebugWindow : UIWindow
+@interface TTDebugViewController: UIViewController
+@end
+@implementation TTDebugViewController
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+//    return UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskLandscape;
+    UIInterfaceOrientationMask mask = [TTDebugUtils currentViewControllerNotInDebug:YES].supportedInterfaceOrientations;
+    return mask;
+}
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    UIViewController *currentViewController = [TTDebugUtils currentViewControllerNotInDebug:YES];
+    UIInterfaceOrientation orientation = currentViewController.preferredInterfaceOrientationForPresentation;
+    UIInterfaceOrientationMask supportedInterfaceOrientations = currentViewController.supportedInterfaceOrientations;
+    if (orientation != UIInterfaceOrientationUnknown && orientation <= UIInterfaceOrientationLandscapeRight) {
+        return orientation;
+    }
+
+    if (supportedInterfaceOrientations & UIInterfaceOrientationMaskPortrait) {
+        return UIInterfaceOrientationPortrait;
+    }
+    if (supportedInterfaceOrientations & UIInterfaceOrientationMaskLandscapeRight) {
+        return UIInterfaceOrientationLandscapeRight;
+    }
+    if (supportedInterfaceOrientations & UIInterfaceOrientationMaskLandscapeLeft) {
+        return UIInterfaceOrientationLandscapeLeft;
+    }
+    return UIInterfaceOrientationPortrait;
+}
 
 @end
 
+static TTFloatCircledDebugWindow *_debugWindow;
 @implementation TTFloatCircledDebugWindow
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -158,8 +187,15 @@ static CGFloat const TTFloatCircledWidth = 60;
     self = [super initWithFrame:CGRectMake(0, 0, shortSide, longSide)];
     if (self) {
         self.windowLevel = UIWindowLevelStatusBar - 10;
+//        [self addRootViewControllerIfNeeded:nil];
         [self handleRotate:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleRotate:) name:UIApplicationDidChangeStatusBarOrientationNotification object:nil];
+        __weak __typeof(self) weakSelf = self;
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidChangeStatusBarOrientationNotification object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
+            if (!weakSelf.rootViewController) {
+                [weakSelf handleRotate:nil];
+            }
+        }];
+//        self.backgroundColor = [[UIColor redColor] colorWithAlphaComponent:0.2];
     }
     return self;
 }
@@ -196,7 +232,7 @@ static CGFloat const TTFloatCircledWidth = 60;
 
 - (void)didAddSubview:(UIView *)subview {
     [super didAddSubview:subview];
-    
+        
     [self.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         if ([obj isKindOfClass:[TTFloatCircledDebugView class]] && idx != self.subviews.count - 1) {
             [self bringSubviewToFront:obj];
@@ -207,8 +243,13 @@ static CGFloat const TTFloatCircledWidth = 60;
 
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
     for (UIView *subview in self.subviews) {
-        if ([subview isDescendantOfView:self.rootViewController.view] ||
-            [self.rootViewController.view isDescendantOfView:subview]) {
+        if ([self.rootViewController.view isDescendantOfView:subview] && !self.rootViewController.presentedViewController) {
+            for (UIView *rootSubview in self.rootViewController.view.subviews) {
+                CGPoint subPoint = [self convertPoint:point toView:rootSubview];
+                if ([rootSubview pointInside:subPoint withEvent:event]) {
+                    return YES;
+                }
+            }
             continue;
         }
         if (subview.hidden || !subview.userInteractionEnabled || subview.alpha <= 0.01) {
@@ -222,31 +263,66 @@ static CGFloat const TTFloatCircledWidth = 60;
     return NO;
 }
 
++ (void)create {
+    _debugWindow = [[TTFloatCircledDebugWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    _debugWindow.hidden = NO;
+}
+
++ (TTFloatCircledDebugWindow *)debugWindow {
+    return _debugWindow;
+}
+
++ (void)destory {
+    _debugWindow.hidden = YES;
+    _debugWindow = nil;
+}
+
+- (void)addRootViewControllerIfNeeded:(dispatch_block_t)block {
+    if (!self.rootViewController) {
+        // 还原旋转，让rootViewController控制window的朝向
+        self.transform = CGAffineTransformIdentity;
+        CGFloat shortSide = MIN(kScreenWidth, kScreenHeight);
+        CGFloat longSide = MAX(kScreenWidth, kScreenHeight);
+        UIInterfaceOrientation orientation = [UIApplication sharedApplication].statusBarOrientation;
+        if (orientation == UIInterfaceOrientationLandscapeLeft || orientation == UIInterfaceOrientationLandscapeRight) {
+            self.frame = self.bounds = CGRectMake(0, 0, longSide, shortSide);
+        } else {
+            self.frame = self.bounds = CGRectMake(0, 0, shortSide, longSide);
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            self.rootViewController = [[TTDebugViewController alloc] init];
+            !block ?: block();
+        });
+    } else {
+        !block ?: block();
+    }
+}
+
+- (void)removeRootViewControllerIfNeeded {
+    if (!self.rootViewController || self.rootViewController.presentedViewController) {
+        return;
+    }
+    self.rootViewController = nil;
+    NSArray *subviews = self.subviews.copy;
+    [subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        if ([obj isKindOfClass:NSClassFromString(@"UITransitionView")]) {
+            [obj removeFromSuperview];
+        }
+    }];
+    // 横屏下页面关闭，只有这样才能让debugwidnow朝向正确。
+    // 谁有更好的办法欢迎提出来😄
+    if (UIDeviceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation)) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            NSArray *subviews = self.subviews;
+            [[self class] create];
+            for (UIView *subview in subviews) {
+                [_debugWindow addSubview:subview];
+            }
+        });
+    }
+}
+
 @end
-
-//@implementation UIWindow (TTDebug)
-//
-//+ (void)swizzleDidAddSubview {
-//    static dispatch_once_t onceToken;
-//    dispatch_once(&onceToken, ^{
-//        [self TTDebug_swizzleInstanceMethod:@selector(didAddSubview:) with:@selector(TTDebug_didAddSubview:)];
-//    });
-//}
-//
-//- (void)TTDebug_didAddSubview:(UIView *)subview {
-//    [self TTDebug_didAddSubview:subview];
-//
-//    [self.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-//
-////        if ([obj isKindOfClass:[TTFloatCircledDebugView class]]) {
-////            [self bringSubviewToFront:obj];
-////        }
-//    }];
-//}
-//
-//@end
-
-static TTFloatCircledDebugWindow *_debugWindow;
 
 @interface TTFloatCircledDebugView ()
 <UICollectionViewDelegate,
@@ -296,10 +372,6 @@ UIGestureRecognizerDelegate>
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidChangeStatusBarOrientationNotification object:nil];
-}
-
-+ (UIWindow *)debugWindow {
-    return _debugWindow;
 }
 
 - (void)setGroups:(NSMutableArray<TTDebugActionGroup *> *)groups {
@@ -363,6 +435,8 @@ UIGestureRecognizerDelegate>
     self.mainButton.backgroundColor = [UIColor whiteColor];
     self.mainButton.layer.masksToBounds = YES;
     [self.mainButton addTarget:self action:@selector(toggleExpanded) forControlEvents:UIControlEventTouchUpInside];
+    UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(didLongPress:)];
+    [self.mainButton addGestureRecognizer:longPress];
     [self addSubview:self.mainButton];
 
     self.maskLayer = [CAShapeLayer layer];
@@ -376,10 +450,8 @@ UIGestureRecognizerDelegate>
 
 - (void)show {
     if (@available(iOS 13.0, *)) {
-        _debugWindow = [[TTFloatCircledDebugWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-        _debugWindow.hidden = NO;
-        
-        [self showAddedInView:_debugWindow animated:NO];
+        [TTFloatCircledDebugWindow create];
+        [self showAddedInView:[TTFloatCircledDebugWindow debugWindow]  animated:NO];
     } else {
         [self showAddedInView:[TTDebugUtils mainWindow] animated:NO];
     }
@@ -460,6 +532,15 @@ UIGestureRecognizerDelegate>
         self.contentView = nil;
     }
     self.inExpandAnimation = NO;
+}
+
+- (void)didLongPress:(UIGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        if (self.shouldLongPressDismiss && !self.shouldLongPressDismiss()) {
+            return;
+        }
+        [self dismissAnimated:YES];
+    }
 }
 
 - (void)loadContentView {
@@ -607,7 +688,7 @@ UIGestureRecognizerDelegate>
     dispatch_block_t completion = ^{
         self.alpha = 0;
         [self removeFromSuperview];
-        _debugWindow = nil;
+        [TTFloatCircledDebugWindow destory];
     };
     animated ? [UIView animateWithDuration:.25 animations:^{
         self.alpha = 0;

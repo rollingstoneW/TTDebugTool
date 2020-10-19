@@ -207,12 +207,22 @@ static NSMutableArray *results;
             [self fillError:error withCode:TTDebugRuntimeErrorDoesNotRespondsSelector description:[NSString stringWithFormat:@"执行失败(找不到方法): %@", instance]];
             return nil;
         }
-        target = [[cls alloc] init];
+        NSString *selectorName = NSStringFromSelector(selector);
+        if ([selectorName isEqualToString:@"init"] || [selectorName hasPrefix:@"initWith"]) {
+            target = [cls alloc];
+        } else {
+            target = [[cls alloc] init];
+        }
     } else {
         if ([cls respondsToSelector:selector]) {
             target = cls;
         } else if ([cls instancesRespondToSelector:selector]) {
-            target = [[cls alloc] init];
+            NSString *selectorName = NSStringFromSelector(selector);
+            if ([selectorName isEqualToString:@"init"] || [selectorName hasPrefix:@"initWith"]) {
+                target = [cls alloc];
+            } else {
+                target = [[cls alloc] init];
+            }
             isInstanceMethod = YES;
         } else {
             [self fillError:error withCode:TTDebugRuntimeErrorTargetDoesNotExist description:[NSString stringWithFormat:@"执行失败(没有执行对象): %@", instance]];

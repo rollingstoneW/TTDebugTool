@@ -6,18 +6,20 @@
 //
 
 #import "TTDebugAction.h"
-@class LiveViewHierarchyItem;
+@class TTDebugExpandableListItem;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface TTDebugViewHierarchyAction : TTDebugAction
+
++ (TTDebugActionGroup *)group;
 
 + (instancetype)viewHierarchyAction;
 + (instancetype)selectViewAction;
 
 + (instancetype)viewControllerHierarchyAction;
 
-- (NSArray<LiveViewHierarchyItem *> *)hierarchyItemsInAllWindows;
+- (NSArray<TTDebugExpandableListItem *> *)hierarchyItemsInAllWindows;
 
 @end
 

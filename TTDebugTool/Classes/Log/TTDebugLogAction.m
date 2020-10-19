@@ -70,40 +70,46 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
         self.title = @"日志";
         __weak __typeof(self) weakSelf = self;
         self.handler = ^(TTDebugAction * _Nonnull action) {
-            [weakSelf.modules enumerateObjectsUsingBlock:^(id<TTDebugLogModule>  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-                if ([obj respondsToSelector:@selector(consoleViewDidShow)]) {
-                    [obj consoleViewDidShow];
-                }
-            }];
-            __block NSInteger index = 0;
-            if (![TTDebugUserDefaults() boolForKey:HasShownAboutKey]) {
+            TTDebugAsync(^{
                 [weakSelf.modules enumerateObjectsUsingBlock:^(id<TTDebugLogModule>  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-                    if ([obj isKindOfClass:[TTDebugLogAboutModule class]]) {
-                        index = idx;
-                        *stop = YES;
+                    if ([obj respondsToSelector:@selector(consoleViewDidShow)]) {
+                        [obj consoleViewDidShow];
                     }
                 }];
-                [TTDebugUserDefaults() setBool:YES forKey:HasShownAboutKey];
-                [TTDebugUserDefaults() synchronize];
-            }
-            weakSelf.console = [TTDebugLogConsoleView showAddedInView:TTDebugWindow()];
-            weakSelf.console.delegate = weakSelf;
-            [weakSelf.console selectIndex:index];
-            [weakSelf logConsoleViewDidShowIndex:index];
-            [[NSNotificationCenter defaultCenter] postNotificationName:TTDebugDidAddViewOnWindowNotificationName object:weakSelf.console];
+                __block NSInteger index = 0;
+                if (![TTDebugUserDefaults() boolForKey:HasShownAboutKey]) {
+                    [weakSelf.modules enumerateObjectsUsingBlock:^(id<TTDebugLogModule>  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+                        if ([obj isKindOfClass:[TTDebugLogAboutModule class]]) {
+                            index = idx;
+                            *stop = YES;
+                        }
+                    }];
+                    [TTDebugUserDefaults() setBool:YES forKey:HasShownAboutKey];
+                    [TTDebugUserDefaults() synchronize];
+                }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    weakSelf.console = [TTDebugLogConsoleView showAddedInView:TTDebugWindow()];
+                    weakSelf.console.delegate = weakSelf;
+                    [weakSelf.console selectIndex:index];
+                    [weakSelf logConsoleViewDidShowIndex:index];
+                    [[NSNotificationCenter defaultCenter] postNotificationName:TTDebugDidAddViewOnWindowNotificationName object:weakSelf.console];
+                });
+            });
         };
     }
     return self;
 }
 
 - (void)registModule:(id<TTDebugLogModule>)module {
-    [self.modules addObject:module];
-    [self.logItems addObject:[NSMutableArray array]];
-    module.delegate = self;
-    if ([module respondsToSelector:@selector(didRegist)]) {
-        [module didRegist];
-    }
-    TTDebugLog(@"日志注册: %@", module.title);
+    TTDebugAsync(^{
+        [self.modules addObject:module];
+        [self.logItems addObject:[NSMutableArray array]];
+        module.delegate = self;
+        if ([module respondsToSelector:@selector(didRegist)]) {
+            [module didRegist];
+        }
+        TTDebugLog(@"日志注册: %@", module.title);
+    });
 }
 
 - (void)didUnregist {
@@ -111,15 +117,17 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
         [self.console dismiss];
         self.console = nil;
     }
-    [self.modules enumerateObjectsUsingBlock:^(id<TTDebugLogModule>  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        if ([obj respondsToSelector:@selector(didUnregist)]) {
-            [obj didUnregist];
+    TTDebugAsync(^{
+        [self.modules enumerateObjectsUsingBlock:^(id<TTDebugLogModule>  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            if ([obj respondsToSelector:@selector(didUnregist)]) {
+                [obj didUnregist];
+            }
+            TTDebugLog(@"日志去注册: %@", obj.title);
+        }];
+        if (self.clearItemsWhenUnregist) {
+            [self clean];
         }
-        TTDebugLog(@"日志去注册: %@", obj.title);
-    }];
-    if (self.clearItemsWhenUnregist) {
-        [self clean];
-    }
+    });
 }
 
 - (void)clean {
@@ -213,11 +221,11 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
     if (!log.message.length && !log.detail.length) {
         return;
     }
-    NSInteger moduleIndex = [self.modules indexOfObject:module];
-    if (moduleIndex == NSNotFound) {
-        return;
-    }
     TTDebugAsync(^{
+        NSInteger moduleIndex = [self.modules indexOfObject:module];
+        if (moduleIndex == NSNotFound) {
+            return;
+        }
         NSMutableArray *items = self.logItems[moduleIndex];
         NSInteger index = [items indexOfObject:log];
         if (index == NSNotFound) {
@@ -233,11 +241,11 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
 }
 
 - (NSArray<TTDebugLogItem *> *)logsForModule:(id<TTDebugLogModule>)module {
-    if (![self.modules containsObject:module]) {
-        return nil;
-    }
     __block NSArray<TTDebugLogItem *> *items;
     TTDebugSync(^{
+        if (![self.modules containsObject:module]) {
+            return;
+        }
         items = self.logItems[self.currentIndex].copy;
     });
     return items;
@@ -408,7 +416,11 @@ static NSString * const HasShownAboutKey = @"hasShownAbout";
 }
 
 - (id<TTDebugLogModule>)currentModule {
-    return self.modules[self.currentIndex];
+    __block id<TTDebugLogModule> module;
+    TTDebugSync(^{
+        module = self.modules[self.currentIndex];
+    });
+    return module;
 }
 
 @end
